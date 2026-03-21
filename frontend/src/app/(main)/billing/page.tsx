@@ -31,6 +31,7 @@ import { toast } from "sonner";
 // ── Types ────────────────────────────────────────────────────────────────
 
 interface BalanceData {
+  balance_usd: number;
   credits: number;
   usd_equivalent: number;
   daily_free_tokens_used: number;
@@ -39,6 +40,7 @@ interface BalanceData {
 
 interface CreditPack {
   id: string;
+  amount_usd: number;
   credits: number;
   price_usd: number;
   label: string;
@@ -76,31 +78,21 @@ const GROUP_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-function formatCredits(credits: number): string {
-  if (credits === 0) return "0";
-  if (credits >= 1000) return `${(credits / 1000).toFixed(1)}K`;
-  return credits.toFixed(0);
+function formatUsd(credits: number): string {
+  const usd = credits / 100;
+  return `$${usd.toFixed(2)}`;
 }
 
-function formatWholeCredits(value: number): string {
-  if (Math.abs(value) < 1 && value !== 0) {
-    const abs = Math.abs(value);
-    if (abs < 0.001) return value < 0 ? "-<0.001" : "+<0.001";
-    return value.toFixed(3);
-  }
-  const rounded = Math.round(value);
-  return String(Object.is(rounded, -0) ? 0 : rounded);
+function formatWholeUsd(value: number): string {
+  const usd = value / 100;
+  return `$${Math.abs(usd) < 0.005 ? "0.00" : usd.toFixed(2)}`;
 }
 
-function formatSignedWholeCredits(value: number): string {
-  if (Math.abs(value) < 1 && value !== 0) {
-    const abs = Math.abs(value);
-    if (abs < 0.001) return value < 0 ? "-<0.001" : "+<0.001";
-    return `${value > 0 ? "+" : ""}${value.toFixed(3)}`;
-  }
-  const rounded = Math.round(value);
-  const normalized = Object.is(rounded, -0) ? 0 : rounded;
-  return `${normalized > 0 ? "+" : ""}${normalized}`;
+function formatSignedUsd(value: number): string {
+  const usd = value / 100;
+  if (Math.abs(usd) < 0.005) return "$0.00";
+  const sign = usd > 0 ? "+" : "";
+  return `${sign}$${usd.toFixed(2)}`;
 }
 
 function transactionIcon(type: string) {
@@ -385,7 +377,7 @@ export default function BillingPage() {
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-semibold text-[var(--text-primary)] font-mono">
-                      {formatCredits(balance.credits)}
+                      {formatUsd(balance.credits)}
                     </span>
                   </div>
                 </div>
@@ -460,12 +452,9 @@ export default function BillingPage() {
                       </span>
                     )}
                     <div className="text-2xl font-semibold text-[var(--text-primary)] font-mono">
-                      {formatCredits(pack.credits)}
+                      ${pack.price_usd.toFixed(0)}
                     </div>
                     <div className="text-xs text-[var(--text-tertiary)] mt-0.5">{t('creditsLabel')}</div>
-                    <div className="text-lg font-semibold text-[var(--text-primary)] mt-3">
-                      ${pack.price_usd.toFixed(2)}
-                    </div>
                   </button>
                 ))}
               </div>
@@ -527,10 +516,10 @@ export default function BillingPage() {
                         </div>
                         <div className="text-right shrink-0">
                           <p className={`text-xs font-mono font-medium ${transactionColor(tx.type)}`}>
-                            {formatSignedWholeCredits(tx.amount)}
+                            {formatSignedUsd(tx.amount)}
                           </p>
                           <p className="text-[10px] text-[var(--text-tertiary)] font-mono">
-                            {t('bal')}: {formatWholeCredits(tx.balance_after)}
+                            {t('bal')}: {formatWholeUsd(tx.balance_after)}
                           </p>
                         </div>
                       </div>

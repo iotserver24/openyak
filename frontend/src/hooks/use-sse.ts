@@ -368,7 +368,7 @@ export function useSSE(streamId: string | null) {
         store.getState().setQuestion({
           callId: data.call_id,
           tool: data.tool ?? "question",
-          arguments: data.arguments ?? { question: data.question, options: data.options },
+          arguments: data.arguments ?? { question: data.question, options: data.options, questions: data.questions },
         });
       }
     });

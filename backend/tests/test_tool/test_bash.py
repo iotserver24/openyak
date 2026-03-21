@@ -7,6 +7,7 @@ import pytest
 from app.schemas.agent import AgentInfo
 from app.tool.builtin.bash import BashTool
 from app.tool.context import ToolContext
+from app.tool.subprocess_compat import IS_WINDOWS, find_bash_on_windows
 
 
 def _make_ctx() -> ToolContext:
@@ -33,9 +34,11 @@ class TestBashTool:
 
     @pytest.mark.asyncio
     async def test_exit_code_nonzero(self, tool: BashTool):
-        if platform.system() == "Windows":
+        if IS_WINDOWS and not find_bash_on_windows():
+            # No bash on Windows — use cmd syntax
             result = await tool.execute({"command": "cmd /c exit 1"}, _make_ctx())
         else:
+            # bash (Unix or Windows with Git Bash)
             result = await tool.execute({"command": "exit 1"}, _make_ctx())
         assert result.error is not None
         assert "exit code" in result.error.lower() or "1" in str(result.metadata.get("exit_code"))
@@ -56,3 +59,18 @@ class TestBashTool:
         else:
             result = await tool.execute({"command": "echo err >&2"}, _make_ctx())
         assert "err" in result.output
+
+    @pytest.mark.skipif(not IS_WINDOWS or not find_bash_on_windows(), reason="Requires Git Bash on Windows")
+    @pytest.mark.asyncio
+    async def test_unix_command_on_windows(self, tool: BashTool):
+        """On Windows with Git Bash, Unix commands like ls should work."""
+        result = await tool.execute({"command": "ls"}, _make_ctx())
+        assert result.error is None or "not recognized" not in (result.error or "")
+
+    @pytest.mark.asyncio
+    async def test_unicode_output(self, tool: BashTool):
+        """Non-ASCII output should not be garbled."""
+        result = await tool.execute(
+            {"command": 'python -c "print(\'hello world\')"'}, _make_ctx()
+        )
+        assert "hello" in result.output

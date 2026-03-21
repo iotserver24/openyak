@@ -31,7 +31,7 @@ function AccountBadge() {
       >
         <CreditCard className="h-3 w-3 text-[var(--brand-primary)]" />
         <span className="text-[var(--text-secondary)] font-mono">
-          {user.credit_balance} cr
+          ${(user.credit_balance / 100).toFixed(2)}
         </span>
       </Link>
     );

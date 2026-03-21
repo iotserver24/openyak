@@ -19,6 +19,7 @@ from typing import Any
 
 from app.tool.base import ToolDefinition, ToolResult
 from app.tool.context import ToolContext
+from app.tool.subprocess_compat import get_subprocess_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -147,15 +148,19 @@ async def _run_python(code: str, timeout: int) -> tuple[str, int]:
 
             env = os.environ.copy()
             env["PYTHONDONTWRITEBYTECODE"] = "1"
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["PYTHONUTF8"] = "1"
 
             proc = subprocess.run(
                 [_PYTHON, str(script)],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout,
                 cwd=tmpdir,
                 env=env,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+                **get_subprocess_kwargs(),
             )
 
             stdout = (proc.stdout or "")[:MAX_OUTPUT]

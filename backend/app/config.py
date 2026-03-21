@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     project_dir: str = "."
 
     # --- Billing ---
-    markup_percent: float = 20.0  # Platform markup on provider cost (%) — applied in proxy mode
+    markup_percent: float = 0.0  # No markup — same price as OpenRouter (open-source)
 
     # --- Web Search ---
     daily_search_limit: int = 20  # Max free web_search calls per day (Free/BYOK)

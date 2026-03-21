@@ -2305,28 +2305,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "muse-desktop"
-version = "0.0.1"
-dependencies = [
- "env_logger",
- "log",
- "portpicker",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-deep-link",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-process",
- "tauri-plugin-single-instance",
- "tauri-plugin-window-state",
- "tokio",
- "url",
-]
-
-[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2550,6 +2528,28 @@ dependencies = [
  "is-wsl",
  "libc",
  "pathdiff",
+]
+
+[[package]]
+name = "openyak-desktop"
+version = "0.0.1"
+dependencies = [
+ "env_logger",
+ "log",
+ "portpicker",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-deep-link",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-process",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-window-state",
+ "tokio",
+ "url",
 ]
 
 [[package]]

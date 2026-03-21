@@ -49,9 +49,12 @@ export interface SSEEventData {
   permission?: string | null;
   patterns?: string[] | null;
 
-  // question
+  // question (legacy single-question mode)
   question?: string | null;
   options?: unknown[] | null;
+
+  // question (multi-question mode)
+  questions?: QuestionItem[] | null;
 
   // error
   error_type?: string | null;
@@ -87,6 +90,21 @@ export interface PermissionRequest {
   tool: string;
   permission: string;
   patterns: string[];
+}
+
+/** Single option within a multi-question item. */
+export interface QuestionOptionItem {
+  label: string;
+  description?: string;
+  preview?: string;
+}
+
+/** Single question in multi-question mode. */
+export interface QuestionItem {
+  question: string;
+  header: string;
+  options?: QuestionOptionItem[];
+  multiSelect?: boolean;
 }
 
 /** Question prompt from SSE stream. */

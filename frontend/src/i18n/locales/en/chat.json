@@ -139,5 +139,12 @@
   "planFeedbackPlaceholder": "Tell Claude what to do instead",
   "planFilesToModify": "Files to modify",
   "toolSubmittingPlan": "Submitting plan for review",
-  "toolPlanSubmitted": "Plan submitted: {{title}}"
+  "toolPlanSubmitted": "Plan submitted: {{title}}",
+
+  "questionMultiHeader": "Agent has questions",
+  "questionOther": "Other",
+  "questionOtherPlaceholder": "Type your answer...",
+  "questionSubmitAll": "Submit answers",
+  "questionEscCancel": "Esc to cancel",
+  "questionPreviewPlaceholder": "Select an option to see preview"
 }

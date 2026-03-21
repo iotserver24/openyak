@@ -139,5 +139,12 @@
   "planFeedbackPlaceholder": "告诉 AI 应该怎么做",
   "planFilesToModify": "待修改文件",
   "toolSubmittingPlan": "正在提交计划以供审查",
-  "toolPlanSubmitted": "计划已提交：{{title}}"
+  "toolPlanSubmitted": "计划已提交：{{title}}",
+
+  "questionMultiHeader": "AI 有几个问题",
+  "questionOther": "其他",
+  "questionOtherPlaceholder": "输入你的回答...",
+  "questionSubmitAll": "提交回答",
+  "questionEscCancel": "Esc 取消",
+  "questionPreviewPlaceholder": "选择选项查看预览"
 }

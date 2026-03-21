@@ -412,7 +412,7 @@ export default function SettingsPage() {
                         </div>
                         <span className="text-xs font-medium text-[var(--text-primary)]">
                           {authStore.user.billing_mode === "credits"
-                            ? `${authStore.user.credit_balance} credits`
+                            ? `$${(authStore.user.credit_balance / 100).toFixed(2)}`
                             : `Free: ${Math.round(authStore.user.daily_free_tokens_used / 1000)}K / ${Math.round(authStore.user.daily_free_token_limit / 1000)}K tokens`}
                         </span>
                       </div>

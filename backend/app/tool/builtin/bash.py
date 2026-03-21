@@ -8,12 +8,17 @@ from __future__ import annotations
 
 import asyncio
 import os
-import platform
 import subprocess
 from typing import Any
 
 from app.tool.base import ToolDefinition, ToolResult
 from app.tool.context import ToolContext
+from app.tool.subprocess_compat import (
+    IS_WINDOWS,
+    decode_subprocess_output,
+    find_bash_on_windows,
+    get_subprocess_kwargs,
+)
 from app.tool.workspace import WorkspaceViolation, get_default_output_dir, validate_cwd
 
 DEFAULT_TIMEOUT = 120  # 2 minutes
@@ -77,11 +82,26 @@ class BashTool(ToolDefinition):
                 # If we can't create it, fall back to workspace or None
                 cwd = ctx.workspace or None
 
-        # Use shell=True so the platform picks the right shell automatically
-        # (cmd on Windows, /bin/sh on Unix).
-        _creation_flags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
+        # Build platform-specific subprocess kwargs (creationflags on Windows)
+        extra_kwargs = get_subprocess_kwargs()
+
+        # On Windows, prefer bash if available (Git Bash understands Unix commands).
+        # We invoke bash directly with -c instead of using shell=True + executable,
+        # because Windows shell=True formats the command for cmd.exe.
+        bash_path = find_bash_on_windows() if IS_WINDOWS else None
 
         def _run() -> subprocess.CompletedProcess[bytes]:
+            if bash_path:
+                return subprocess.run(
+                    [bash_path, "-c", command],
+                    shell=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=cwd,
+                    timeout=timeout,
+                    env={**os.environ},
+                    **extra_kwargs,
+                )
             return subprocess.run(
                 command,
                 shell=True,
@@ -90,7 +110,7 @@ class BashTool(ToolDefinition):
                 cwd=cwd,
                 timeout=timeout,
                 env={**os.environ},
-                creationflags=_creation_flags,
+                **extra_kwargs,
             )
 
         try:
@@ -105,8 +125,8 @@ class BashTool(ToolDefinition):
         except PermissionError:
             return ToolResult(error="Permission denied")
 
-        stdout = result.stdout.decode("utf-8", errors="replace")
-        stderr = result.stderr.decode("utf-8", errors="replace")
+        stdout = decode_subprocess_output(result.stdout)
+        stderr = decode_subprocess_output(result.stderr)
 
         output_parts = []
         if stdout:

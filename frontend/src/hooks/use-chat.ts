@@ -277,15 +277,20 @@ export function useChat(currentSessionId?: string) {
   );
 
   const respondToQuestion = useCallback(
-    async (answer: string) => {
+    async (answer: string | Record<string, string>) => {
       const { pendingQuestion: question, streamId, clearQuestion } = useChatStore.getState();
-      const normalized = answer?.trim();
-      if (!question || !streamId || !normalized) return;
+      if (!question || !streamId) return;
+
+      // Multi-question mode: answer is Record<string, string>, serialize to JSON
+      // Legacy mode: answer is a plain string
+      const response =
+        typeof answer === "string" ? answer.trim() : JSON.stringify(answer);
+      if (!response) return;
 
       const req: RespondRequest = {
         stream_id: streamId,
         call_id: question.callId,
-        response: normalized,
+        response,
       };
 
       try {
