@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { useAutoDetectProvider } from "@/hooks/use-auto-detect-provider";
 import { useActivityStore } from "@/stores/activity-store";
 import { useArtifactStore } from "@/stores/artifact-store";
 import { api } from "@/lib/api";
@@ -63,6 +64,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const planReviewWidth = usePlanReviewStore((s) => s.panelWidth);
   const isDesktop = useIsDesktop();
   const qc = useQueryClient();
+  useAutoDetectProvider();
 
   // Onboarding gate — show onboarding if first run and not already connected
   const hasCompletedOnboarding = useSettingsStore((s) => s.hasCompletedOnboarding);

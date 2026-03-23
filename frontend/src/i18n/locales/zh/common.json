@@ -47,5 +47,8 @@
   "noConversationsHint": "开始新对话",
   "searchChats": "搜索对话",
   "automations": "自动化",
-  "plugins": "插件"
+  "plugins": "插件",
+  "models": "服务商",
+  "remote": "远程",
+  "setupProvider": "配置服务商"
 }

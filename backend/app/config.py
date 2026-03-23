@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
 
+    # --- Ollama (Local LLM) ---
+    ollama_base_url: str = ""  # e.g. "http://localhost:11434" — empty = not configured
+    ollama_auto_start: bool = True  # Auto-start managed Ollama binary on app launch
+    ollama_last_model: str = ""  # Last-used model name for startup pre-warming
+
     # --- Brave Search ---
     brave_search_api_key: str = ""
 

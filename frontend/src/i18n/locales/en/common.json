@@ -47,5 +47,8 @@
   "premium": "Premium",
   "searchChats": "Search chats",
   "automations": "Automations",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "models": "Models",
+  "remote": "Remote",
+  "setupProvider": "Set up provider"
 }

@@ -167,9 +167,16 @@ export function useSSE(streamId: string | null) {
         },
       });
 
+    // Model loading (Ollama cold start)
+    client.on(SSE_EVENTS.MODEL_LOADING, (_data, id) => {
+      persistedLastEventId = id;
+      store.getState().setModelLoading(true);
+    });
+
     // Text streaming
     client.on(SSE_EVENTS.TEXT_DELTA, (data, id) => {
       persistedLastEventId = id;
+      if (store.getState().isModelLoading) store.getState().setModelLoading(false);
       if (data.text) store.getState().appendTextDelta(data.text);
     });
 

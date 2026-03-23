@@ -54,6 +54,7 @@ from app.session.system_prompt import build_system_prompt
 from app.session.title import generate_title
 from app.streaming.events import (
     AGENT_ERROR,
+    MODEL_LOADING,
     PERMISSION_REQUEST,
     REASONING_DELTA,
     RETRY,
@@ -484,6 +485,10 @@ class SessionProcessor:
                 if sp.provider.id == "openai-subscription":
                     _exclude_tools = _exclude_tools or set()
                     _exclude_tools.add("web_search")
+
+                # Notify frontend that the model may need loading (Ollama cold start)
+                if sp.provider.id == "ollama":
+                    job.publish(SSEEvent(MODEL_LOADING, {"model": sp.model_id, "status": "loading"}))
 
                 # Strip image_url from messages if model doesn't support vision.
                 # User-attached images may have image_url content.

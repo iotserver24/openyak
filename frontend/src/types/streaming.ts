@@ -21,6 +21,7 @@ export const SSE_EVENTS = {
   AGENT_ERROR: "agent-error",
   ERROR: "error",
   PLAN_REVIEW: "plan-review",
+  MODEL_LOADING: "model-loading",
 } as const;
 
 /** SSE event payload — mirrors backend app/schemas/streaming.py SSEEventData */

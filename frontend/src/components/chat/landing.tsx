@@ -6,8 +6,9 @@ import {
   Search, Mail, Globe, FileSpreadsheet, PenTool,
   FolderSearch, Trash2, Receipt, FolderSync, FileOutput,
   Layers, MailPlus, Image, FileDiff, FileSpreadsheet as TableIcon, CalendarDays,
-  Keyboard, Upload, CornerDownLeft,
+  Keyboard, Upload, CornerDownLeft, Settings,
 } from "lucide-react";
+import Link from "next/link";
 import { useTranslation } from 'react-i18next';
 import { ChatForm } from "./chat-form";
 import { ChatHeader } from "./chat-header";
@@ -56,6 +57,7 @@ export function Landing() {
   const { t } = useTranslation('chat');
   const { sendMessage, isGenerating, stopGeneration, pendingUserText, pendingAttachments, streamingParts, streamingText, streamingReasoning } = useChat();
   const globalWorkspace = useSettingsStore((s) => s.workspaceDirectory);
+  const activeProvider = useSettingsStore((s) => s.activeProvider);
 
   // Pick random subsets on each mount — stable during the session
   const capabilities = useMemo(() => pickRandom(ALL_CAPABILITIES, 4), []);
@@ -178,6 +180,32 @@ export function Landing() {
 
       <div className="flex flex-1 flex-col items-center justify-center px-4 pb-8">
         <div className="w-full max-w-3xl xl:max-w-4xl space-y-8">
+          {/* Provider setup prompt */}
+          {!activeProvider && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+              className="flex items-center gap-4 rounded-xl border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/5 px-5 py-4"
+            >
+              <Settings className="h-5 w-5 shrink-0 text-[var(--brand-primary)]" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+                  {t('setupProvider')}
+                </p>
+                <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                  {t('setupProviderDesc')}
+                </p>
+              </div>
+              <Link
+                href="/models"
+                className="shrink-0 inline-flex items-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-secondary)] transition-colors"
+              >
+                {t('configureSettings')}
+              </Link>
+            </motion.div>
+          )}
+
           {/* Greeting */}
           <div className="text-center pb-2">
             <h1 className="text-3xl sm:text-4xl font-medium text-[var(--text-primary)] tracking-tight mb-2">

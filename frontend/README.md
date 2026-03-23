@@ -49,7 +49,9 @@ src/
 │       ├── layout.tsx            #     Sidebar + main content area layout
 │       ├── c/new/page.tsx        #     New conversation (Landing page)
 │       ├── c/[sessionId]/page.tsx #    Active conversation
-│       └── settings/page.tsx     #     Settings page
+│       ├── models/page.tsx      #     Model providers + Ollama management
+│       ├── remote/page.tsx      #     Remote access (tunnel, QR, permissions)
+│       └── settings/page.tsx    #     Settings (appearance, language, about)
 │
 ├── components/
 │   ├── providers/                # Provider layer
@@ -60,11 +62,14 @@ src/
 │   ├── layout/                   # Layout components
 │   │   ├── sidebar.tsx           #   Desktop sidebar (fixed 260px)
 │   │   ├── sidebar-header.tsx    #   Logo + new chat button
-│   │   ├── sidebar-search.tsx    #   Session search
+│   │   ├── sidebar-nav.tsx       #   Nav items (Automations, Plugins, Models, Remote, Usage)
 │   │   ├── session-list.tsx      #   Session list (with search filter)
 │   │   ├── session-item.tsx      #   Single session (highlight, delete, timestamp)
-│   │   ├── sidebar-footer.tsx    #   Model/Agent selectors + theme toggle + settings
+│   │   ├── sidebar-footer.tsx    #   User info + settings gear
 │   │   └── mobile-nav.tsx        #   Mobile drawer navigation (Sheet)
+│   │
+│   ├── settings/                 # Settings components
+│   │   └── ollama-panel.tsx      #   Ollama management (setup, models, library, pull/delete)
 │   │
 │   ├── chat/                     # Chat interface
 │   │   ├── chat-view.tsx         #   Conversation orchestrator (messages + input + interactive prompts)
@@ -156,20 +161,20 @@ src/
 │ │+ New  │ │  │ MessageList                          │    │
 │ ├───────┤ │  │   ├── UserMessage                    │    │
 │ │Search │ │  │   ├── AssistantMessage               │    │
-│ ├───────┤ │  │   │   ├── TextPart (markdown)        │    │
-│ │Session│ │  │   │   ├── ReasoningPart (collapsible) │   │
-│ │List   │ │  │   │   ├── ToolPart (expandable)      │    │
-│ │       │ │  │   │   └── StepIndicator              │    │
-│ ├───────┤ │  │   └── StreamingMessage (typing)      │    │
-│ │Model  │ │  ├──────────────────────────────────────┤    │
-│ │Select │ │  │ PermissionDialog / QuestionPrompt    │    │
-│ │Agent  │ │  ├──────────────────────────────────────┤    │
-│ │Select │ │  │ ChatForm                             │    │
+│ │Autom. │ │  │   │   ├── TextPart (markdown)        │    │
+│ │Plugin │ │  │   │   ├── ReasoningPart (collapsible) │   │
+│ │Models │ │  │   │   ├── ToolPart (expandable)      │    │
+│ │Remote │ │  │   │   └── StepIndicator              │    │
+│ │Usage  │ │  │   └── StreamingMessage (typing)      │    │
+│ ├───────┤ │  ├──────────────────────────────────────┤    │
+│ │Session│ │  │ PermissionDialog / QuestionPrompt    │    │
+│ │List   │ │  ├──────────────────────────────────────┤    │
+│ │       │ │  │ ChatForm                             │    │
 │ ├───────┤ │  │ ┌────────────────────────────┬─────┐ │    │
-│ │Theme  │ │  │ │ Textarea (auto-resize)     │Send │ │    │
-│ │Toggle │ │  │ └────────────────────────────┴─────┘ │    │
-│ │       │ │  │ [agent badge] [model badge]          │    │
-│ └───────┘ │  └──────────────────────────────────────┘    │
+│ │User ⚙│ │  │ │ Textarea (auto-resize)     │Send │ │    │
+│ └───────┘ │  │ └────────────────────────────┴─────┘ │    │
+│           │  │ [agent badge] [model badge]          │    │
+│           │  └──────────────────────────────────────┘    │
 ├───────────┴──────────────────────────────────────────────┤
 │  MobileNav (≤768px, Sheet drawer)                        │
 └──────────────────────────────────────────────────────────┘

@@ -57,8 +57,13 @@ app/
 │   ├── base.py          #   BaseProvider ABC
 │   ├── openai_compat.py #   OpenAI 兼容基类
 │   ├── openrouter.py    #   OpenRouter（主要提供者，支持 reasoning）
+│   ├── ollama.py        #   Ollama 本地大模型（继承 OpenAI 兼容基类）
 │   ├── registry.py      #   ProviderRegistry
 │   └── tool_calling/    #   工具调用适配（原生 FC 检测 + prompt-based 回退）
+│
+├── ollama/              # Ollama 运行时管理
+│   ├── manager.py       #   二进制下载、进程生命周期（启动/停止/健康检查）
+│   └── library.py       #   模型库（从 ollama.com 实时搜索 + 离线回退）
 │
 ├── streaming/           # 可恢复 SSE 流
 │   ├── events.py        #   SSEEvent 类型 + 编码
@@ -135,12 +140,21 @@ app/
 | GET | `/api/sessions/{id}/export-pdf` | 导出对话为 PDF |
 | GET | `/api/messages/{session_id}` | 获取会话消息 + parts |
 | GET | `/api/agents` | 列出 agent |
-| GET | `/api/models` | 列出可用模型（来自 OpenRouter） |
+| GET | `/api/models` | 列出可用模型（所有 provider） |
 | GET | `/api/tools` | 列出工具 |
 | GET | `/api/skills` | 列出技能 |
 | POST | `/api/files/upload` | 上传文件 |
 | GET/POST | `/api/config` | 获取/设置应用配置 |
 | GET | `/api/usage` | Token 用量追踪 |
+| GET | `/api/ollama/status` | Ollama 运行状态（二进制、运行中、版本） |
+| POST | `/api/ollama/setup` | 下载 Ollama + 启动服务（SSE 进度流） |
+| POST | `/api/ollama/start` | 启动 Ollama 服务 |
+| POST | `/api/ollama/stop` | 停止 Ollama 服务 |
+| GET | `/api/ollama/models` | 列出本地已安装的 Ollama 模型 |
+| GET | `/api/ollama/models/library` | 浏览模型库（搜索、排序、翻页） |
+| POST | `/api/ollama/models/pull` | 下载模型（SSE 进度流） |
+| DELETE | `/api/ollama/models/{name}` | 删除本地模型 |
+| DELETE | `/api/ollama/uninstall` | 移除 Ollama 二进制 + 可选删除模型 |
 
 ## 核心 Agent Loop
 
@@ -213,7 +227,7 @@ curl http://localhost:8000/api/agents
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `OPENYAK_OPENROUTER_API_KEY` | OpenRouter API 密钥 | （必填） |
+| `OPENYAK_OPENROUTER_API_KEY` | OpenRouter API 密钥 | （可选） |
 | `OPENYAK_DATABASE_URL` | 数据库连接字符串 | `sqlite+aiosqlite:///./data/openyak.db` |
 | `OPENYAK_HOST` | 监听地址 | `0.0.0.0` |
 | `OPENYAK_PORT` | 监听端口 | `8000` |
@@ -222,6 +236,9 @@ curl http://localhost:8000/api/agents
 | `OPENYAK_COMPACTION_AUTO` | 自动上下文压缩 | `true` |
 | `OPENYAK_DAILY_SEARCH_LIMIT` | 每日网页搜索配额 | `20` |
 | `OPENYAK_FTS_ENABLED` | 全文搜索索引 | `true` |
+| `OPENYAK_OLLAMA_BASE_URL` | Ollama 服务地址（setup 自动设置） | `` |
+| `OPENYAK_OLLAMA_AUTO_START` | 启动时自动启动托管的 Ollama | `true` |
+| `OPENYAK_OLLAMA_LAST_MODEL` | 上次使用的模型（用于启动预热） | `` |
 
 ## 构建与部署
 

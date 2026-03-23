@@ -149,10 +149,25 @@ export const API = {
     OPENAI_SUBSCRIPTION: "/api/config/openai-subscription",
     OPENAI_SUBSCRIPTION_LOGIN: "/api/config/openai-subscription/login",
     OPENAI_SUBSCRIPTION_MANUAL_CALLBACK: "/api/config/openai-subscription/manual-callback",
+    OLLAMA: "/api/config/ollama",
   },
   FTS: {
     INDEX: (workspace: string, sessionId?: string) =>
       `/api/fts/index/${workspace.replace(/\\/g, "/")}${sessionId ? `?session_id=${sessionId}` : ""}`,
+  },
+  OLLAMA: {
+    STATUS: "/api/ollama/status",
+    SETUP: "/api/ollama/setup",
+    START: "/api/ollama/start",
+    STOP: "/api/ollama/stop",
+    MODELS: "/api/ollama/models",
+    LIBRARY: "/api/ollama/models/library",
+    UNINSTALL: (deleteModels: boolean) =>
+      `/api/ollama/uninstall?delete_models=${deleteModels}` as const,
+    PULL: "/api/ollama/models/pull",
+    DELETE: (name: string) => `/api/ollama/models/${encodeURIComponent(name)}` as const,
+    INFO: (name: string) => `/api/ollama/models/${encodeURIComponent(name)}/info` as const,
+    WARMUP: "/api/ollama/warmup",
   },
   AGENTS: "/api/agents",
   MODELS: "/api/models",
@@ -229,6 +244,7 @@ export const queryKeys = {
   apiKeyStatus: ["apiKeyStatus"] as const,
   openyakAccount: ["openyakAccount"] as const,
   openaiSubscription: ["openaiSubscription"] as const,
+  ollamaStatus: ["ollamaStatus"] as const,
   connectors: ["connectors"] as const,
   plugins: {
     all: ["plugins"] as const,

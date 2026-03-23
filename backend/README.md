@@ -57,8 +57,13 @@ app/
 │   ├── base.py          #   BaseProvider ABC
 │   ├── openai_compat.py #   OpenAI-compatible base class
 │   ├── openrouter.py    #   OpenRouter (primary provider, reasoning model support)
+│   ├── ollama.py        #   Ollama local LLM (extends OpenAI-compat)
 │   ├── registry.py      #   ProviderRegistry
 │   └── tool_calling/    #   Tool calling adapters (native FC detection + prompt-based fallback)
+│
+├── ollama/              # Ollama runtime management
+│   ├── manager.py       #   Binary download, process lifecycle (start/stop/health)
+│   └── library.py       #   Model library (live search from ollama.com + local fallback)
 │
 ├── streaming/           # Resumable SSE streams
 │   ├── events.py        #   SSEEvent types + encoding
@@ -135,12 +140,21 @@ app/
 | GET | `/api/sessions/{id}/export-pdf` | Export conversation as PDF |
 | GET | `/api/messages/{session_id}` | Get session messages + parts |
 | GET | `/api/agents` | List agents |
-| GET | `/api/models` | List available models (from OpenRouter) |
+| GET | `/api/models` | List available models (all providers) |
 | GET | `/api/tools` | List tools |
 | GET | `/api/skills` | List skills |
 | POST | `/api/files/upload` | Upload files |
 | GET/POST | `/api/config` | Get/set app configuration |
 | GET | `/api/usage` | Token usage tracking |
+| GET | `/api/ollama/status` | Ollama runtime status (binary, running, version) |
+| POST | `/api/ollama/setup` | Download Ollama binary + start server (SSE progress) |
+| POST | `/api/ollama/start` | Start Ollama server |
+| POST | `/api/ollama/stop` | Stop Ollama server |
+| GET | `/api/ollama/models` | List locally installed Ollama models |
+| GET | `/api/ollama/models/library` | Browse model library (search, sort, paginate) |
+| POST | `/api/ollama/models/pull` | Download a model (SSE progress) |
+| DELETE | `/api/ollama/models/{name}` | Delete a local model |
+| DELETE | `/api/ollama/uninstall` | Remove Ollama binary + optional models |
 
 ## Core Agent Loop
 
@@ -217,7 +231,7 @@ curl http://localhost:8000/api/agents
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENYAK_OPENROUTER_API_KEY` | OpenRouter API key | (required) |
+| `OPENYAK_OPENROUTER_API_KEY` | OpenRouter API key | (optional) |
 | `OPENYAK_DATABASE_URL` | Database connection string | `sqlite+aiosqlite:///./data/openyak.db` |
 | `OPENYAK_HOST` | Listen address | `0.0.0.0` |
 | `OPENYAK_PORT` | Listen port | `8000` |
@@ -226,6 +240,9 @@ curl http://localhost:8000/api/agents
 | `OPENYAK_COMPACTION_AUTO` | Auto context compression | `true` |
 | `OPENYAK_DAILY_SEARCH_LIMIT` | Daily web search quota | `20` |
 | `OPENYAK_FTS_ENABLED` | Full-text search indexing | `true` |
+| `OPENYAK_OLLAMA_BASE_URL` | Ollama server URL (auto-set by setup) | `` |
+| `OPENYAK_OLLAMA_AUTO_START` | Auto-start managed Ollama on launch | `true` |
+| `OPENYAK_OLLAMA_LAST_MODEL` | Last-used model for startup pre-warming | `` |
 
 ## Build & Deploy
 

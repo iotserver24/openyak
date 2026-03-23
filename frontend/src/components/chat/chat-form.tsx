@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import type { FileAttachment } from "@/types/chat";
 import { useArtifactStore } from "@/stores/artifact-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { useProviderModels } from "@/hooks/use-provider-models";
 import { useIndexStatus } from "@/hooks/use-index-status";
 
 interface ChatFormProps {
@@ -103,6 +104,8 @@ export function ChatForm({ isGenerating, onSend, onStop, className, sessionId, d
   const [isDragOver, setIsDragOver] = useState(false);
   const { ref, resize } = useAutoResize();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { data: providerModels, activeProvider } = useProviderModels();
+  const noModelsAvailable = !activeProvider || providerModels.length === 0;
 
   // @mention state
   const [mentionActive, setMentionActive] = useState(false);
@@ -347,9 +350,9 @@ export function ChatForm({ isGenerating, onSend, onStop, className, sessionId, d
               onSelect={handleSelect}
               onSubmit={handleSend}
               mentionActive={mentionActive}
-              placeholder={hasWorkspace ? t('placeholder') + t('placeholderMention') : t('placeholder')}
+              placeholder={noModelsAvailable ? t('noModelPlaceholder') : hasWorkspace ? t('placeholder') + t('placeholderMention') : t('placeholder')}
               className="min-h-[28px] max-h-[200px] py-1"
-              disabled={isGenerating}
+              disabled={isGenerating || noModelsAvailable}
             />
 
             {suggestions.length > 0 && (
@@ -405,7 +408,7 @@ export function ChatForm({ isGenerating, onSend, onStop, className, sessionId, d
 
             <ChatActions
               isGenerating={isGenerating}
-              canSend={(input.trim().length > 0 || attachments.length > 0) && !isIndexing}
+              canSend={(input.trim().length > 0 || attachments.length > 0) && !isIndexing && !noModelsAvailable}
               onSend={handleSend}
               onStop={onStop}
             />

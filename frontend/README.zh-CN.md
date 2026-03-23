@@ -49,7 +49,9 @@ src/
 │       ├── layout.tsx            #     侧边栏 + 主内容区布局
 │       ├── c/new/page.tsx        #     新对话（Landing 页）
 │       ├── c/[sessionId]/page.tsx #    活跃对话
-│       └── settings/page.tsx     #     设置页
+│       ├── models/page.tsx      #     模型服务商 + Ollama 管理
+│       ├── remote/page.tsx      #     远程访问（隧道、二维码、权限）
+│       └── settings/page.tsx    #     设置（外观、语言、关于）
 │
 ├── components/
 │   ├── providers/                # Provider 层
@@ -60,11 +62,14 @@ src/
 │   ├── layout/                   # 布局组件
 │   │   ├── sidebar.tsx           #   桌面端侧边栏（固定 260px）
 │   │   ├── sidebar-header.tsx    #   Logo + 新建对话按钮
-│   │   ├── sidebar-search.tsx    #   会话搜索
+│   │   ├── sidebar-nav.tsx       #   导航项（自动化、插件、模型、远程、用量）
 │   │   ├── session-list.tsx      #   会话列表（带搜索过滤）
 │   │   ├── session-item.tsx      #   单条会话（高亮、删除、时间戳）
-│   │   ├── sidebar-footer.tsx    #   Model/Agent 选择器 + 主题切换 + 设置
+│   │   ├── sidebar-footer.tsx    #   用户信息 + 设置齿轮
 │   │   └── mobile-nav.tsx        #   移动端抽屉导航（Sheet）
+│   │
+│   ├── settings/                 # 设置组件
+│   │   └── ollama-panel.tsx      #   Ollama 管理（安装、模型库、下载/删除）
 │   │
 │   ├── chat/                     # 聊天界面
 │   │   ├── chat-view.tsx         #   对话页编排器（消息 + 输入 + 交互提示）
@@ -155,18 +160,18 @@ src/
 │ │ Logo  │ │  │                                      │    │
 │ │+ New  │ │  │ MessageList                          │    │
 │ ├───────┤ │  │   ├── UserMessage                    │    │
-│ │Search │ │  │   ├── AssistantMessage               │    │
-│ ├───────┤ │  │   │   ├── TextPart (markdown)        │    │
-│ │Session│ │  │   │   ├── ReasoningPart (折叠)       │    │
-│ │List   │ │  │   │   ├── ToolPart (可展开)          │    │
-│ │       │ │  │   │   └── StepIndicator              │    │
-│ ├───────┤ │  │   └── StreamingMessage (打字指示器)   │    │
-│ │Model  │ │  ├──────────────────────────────────────┤    │
-│ │Select │ │  │ PermissionDialog / QuestionPrompt    │    │
-│ │Agent  │ │  ├──────────────────────────────────────┤    │
-│ │Select │ │  │ ChatForm                             │    │
+│ │搜索   │ │  │   ├── AssistantMessage               │    │
+│ │自动化 │ │  │   │   ├── TextPart (markdown)        │    │
+│ │插件   │ │  │   │   ├── ReasoningPart (折叠)       │    │
+│ │模型   │ │  │   │   ├── ToolPart (可展开)          │    │
+│ │远程   │ │  │   │   └── StepIndicator              │    │
+│ │用量   │ │  │   └── StreamingMessage (打字指示器)   │    │
+│ ├───────┤ │  ├──────────────────────────────────────┤    │
+│ │会话   │ │  │ PermissionDialog / QuestionPrompt    │    │
+│ │列表   │ │  ├──────────────────────────────────────┤    │
+│ │       │ │  │ ChatForm                             │    │
 │ ├───────┤ │  │ ┌────────────────────────────┬─────┐ │    │
-│ │⚙ 🌙  │ │  │ │ Textarea (auto-resize)     │Send │ │    │
+│ │用户 ⚙│ │  │ │ Textarea (auto-resize)     │Send │ │    │
 │ └───────┘ │  │ └────────────────────────────┴─────┘ │    │
 │           │  │ [agent badge] [model badge]          │    │
 │           │  └──────────────────────────────────────┘    │

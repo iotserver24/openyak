@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, Lock, Star } from "lucide-react";
 import { useProviderModels } from "@/hooks/use-provider-models";
 import { useModelArenaMap, type ArenaScore } from "@/hooks/use-arena-scores";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { api } from "@/lib/api";
+import { API } from "@/lib/constants";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -53,6 +55,16 @@ export function ModelSelector() {
   const { selectedModel, setSelectedModel } = useSettingsStore();
   const { isConnected, user } = useAuthStore();
   const arenaMap = useModelArenaMap(models);
+
+  // Ollama warmup — fire-and-forget, deduplicate
+  const warmedModelsRef = useRef<Set<string>>(new Set());
+  const warmupOllamaModel = useCallback((modelId: string) => {
+    if (activeProvider !== "ollama") return;
+    const bare = modelId.replace(/^ollama\//, "");
+    if (warmedModelsRef.current.has(bare)) return;
+    warmedModelsRef.current.add(bare);
+    api.post(API.OLLAMA.WARMUP, { model: bare }).catch(() => {});
+  }, [activeProvider]);
   const visibleModels = useMemo(
     () => (models ?? []).filter((m) => !isLegacyFreeRouterModel(m)),
     [models],
@@ -62,20 +74,27 @@ export function ModelSelector() {
 
   // Auto-select a sensible default when no model is selected or current model doesn't exist in the active provider
   useEffect(() => {
-    if (visibleModels.length === 0) return;
+    if (visibleModels.length === 0) {
+      // All models gone (e.g. deleted) — clear stale selection
+      if (selectedModel) setSelectedModel(null);
+      return;
+    }
     const modelExists = selectedModel && visibleModels.some((m) => m.id === selectedModel);
     if (!modelExists) {
+      let chosen: string;
       if (activeProvider === "openyak" || activeProvider === "byok") {
         // OpenYak/BYOK: prefer openyak/best-free, then first free model, then first visible
         const preferred = visibleModels.find((m) => m.id === "openyak/best-free");
         const fallback = visibleModels.find((m) => isFreeModel(m));
-        setSelectedModel((preferred ?? fallback ?? visibleModels[0]).id);
+        chosen = (preferred ?? fallback ?? visibleModels[0]).id;
       } else {
         // chatgpt or other providers: pick first visible model
-        setSelectedModel(visibleModels[0].id);
+        chosen = visibleModels[0].id;
       }
+      setSelectedModel(chosen);
+      warmupOllamaModel(chosen);
     }
-  }, [visibleModels, selectedModel, setSelectedModel, activeProvider]);
+  }, [visibleModels, selectedModel, setSelectedModel, activeProvider, warmupOllamaModel]);
 
   const { pinnedModel, freeModels, paidModels } = useMemo(() => {
     if (visibleModels.length === 0) return { pinnedModel: null, freeModels: [], paidModels: [] };
@@ -178,6 +197,7 @@ export function ModelSelector() {
                       value={pinnedModel.name}
                       onSelect={() => {
                         setSelectedModel(pinnedModel.id);
+                        warmupOllamaModel(pinnedModel.id);
                         setOpen(false);
                       }}
                       className="text-sm"
@@ -210,6 +230,7 @@ export function ModelSelector() {
                         hasCredits={hasCredits}
                         onSelect={() => {
                           setSelectedModel(model.id);
+                          warmupOllamaModel(model.id);
                           setOpen(false);
                         }}
                         t={t}
@@ -231,6 +252,7 @@ export function ModelSelector() {
                         hasCredits={hasCredits}
                         onSelect={() => {
                           setSelectedModel(model.id);
+                          warmupOllamaModel(model.id);
                           setOpen(false);
                         }}
                         t={t}

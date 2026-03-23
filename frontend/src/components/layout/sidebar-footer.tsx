@@ -1,10 +1,8 @@
 "use client";
 
-import { Sun, Moon, User, CreditCard } from "lucide-react";
-import { useTheme } from "next-themes";
+import { User, CreditCard, Settings } from "lucide-react";
 import { useTranslation } from 'react-i18next';
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { OpenYakLogo } from "@/components/ui/openyak-logo";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -76,7 +74,6 @@ function AccountBadge() {
 
 export function SidebarFooter() {
   const { t } = useTranslation('common');
-  const { theme, setTheme } = useTheme();
   const { isConnected, user } = useAuthStore();
 
   const displayName = isConnected && user ? user.email.split("@")[0] : t('localUser');
@@ -92,16 +89,13 @@ export function SidebarFooter() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-[var(--text-primary)] truncate">{displayName}</p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          aria-label={t('toggleTheme')}
+        <Link
+          href="/settings"
+          className="h-8 w-8 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-secondary)] transition-colors shrink-0"
+          aria-label={t('settings')}
         >
-          <Sun className="h-[18px] w-[18px] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-[18px] w-[18px] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-        </Button>
+          <Settings className="h-4 w-4" />
+        </Link>
       </div>
     </div>
   );

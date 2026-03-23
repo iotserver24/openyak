@@ -9,6 +9,7 @@ const PROVIDER_ID_MAP: Record<NonNullable<ActiveProvider>, string> = {
   openyak: "openrouter",
   byok: "openrouter",
   chatgpt: "openai-subscription",
+  ollama: "ollama",
 };
 
 export function useProviderModels() {

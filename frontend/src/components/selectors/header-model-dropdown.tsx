@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, Star } from "lucide-react";
 import { useProviderModels } from "@/hooks/use-provider-models";
@@ -46,10 +47,12 @@ const SORT_BUTTONS: { key: SortMode; i18n: string }[] = [
 
 export function HeaderModelDropdown() {
   const { t } = useTranslation("common");
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortMode>("popular");
   const { data: models, isLoading, activeProvider } = useProviderModels();
   const { selectedModel, setSelectedModel } = useSettingsStore();
+  const noModels = !activeProvider || (models ?? []).length === 0;
   const arenaMap = useModelArenaMap(models);
   const visibleModels = useMemo(
     () => (models ?? []).filter((m) => !isLegacyFreeRouterModel(m)),
@@ -58,7 +61,10 @@ export function HeaderModelDropdown() {
 
   // Auto-select a sensible default when no model is selected or current model doesn't exist in the active provider
   useEffect(() => {
-    if (visibleModels.length === 0) return;
+    if (visibleModels.length === 0) {
+      if (selectedModel) setSelectedModel(null);
+      return;
+    }
     const modelExists = selectedModel && visibleModels.some((m) => m.id === selectedModel);
     if (!modelExists) {
       if (activeProvider === "openyak" || activeProvider === "byok") {
@@ -124,9 +130,21 @@ export function HeaderModelDropdown() {
   }, [visibleModels, sortBy, arenaMap, activeProvider]);
 
   const selectedName = visibleModels.find((m) => m.id === selectedModel)?.name;
-  const shortModel = selectedName ?? (selectedModel?.includes("/")
-    ? selectedModel.split("/").pop()
-    : selectedModel ?? "...");
+  const shortModel = selectedName ?? (selectedModel ? (selectedModel.includes("/") ? selectedModel.split("/").pop() : selectedModel) : t("noModelFound"));
+
+  // No models available — clicking navigates to provider settings instead of opening dropdown
+  if (noModels) {
+    return (
+      <button
+        type="button"
+        onClick={() => router.push("/models")}
+        className="inline-flex items-center gap-1.5 border-none bg-transparent shadow-none px-3 py-2 text-[15px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] transition-colors rounded-xl h-auto w-auto max-w-[220px] focus:outline-none cursor-pointer"
+      >
+        <span className="truncate">{t("setupProvider")}</span>
+        <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+      </button>
+    );
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -290,6 +308,10 @@ function ModelRow({
       {isSubscription ? (
         <span className="ml-2 shrink-0 text-[10px] font-medium text-[var(--brand-primary)] bg-[var(--brand-primary)]/10 px-1.5 py-0.5 rounded">
           INCLUDED
+        </span>
+      ) : model.provider_id === "ollama" ? (
+        <span className="ml-2 shrink-0 text-[10px] font-medium text-[var(--text-tertiary)] bg-[var(--surface-tertiary)] px-1.5 py-0.5 rounded">
+          LOCAL
         </span>
       ) : free ? (
         <span className="ml-2 shrink-0 text-[10px] font-medium text-[var(--color-success)] bg-[var(--color-success)]/10 px-1.5 py-0.5 rounded">

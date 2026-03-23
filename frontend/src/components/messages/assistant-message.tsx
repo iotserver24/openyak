@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useMemo, memo } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { MessageContent } from "./message-content";
 import { MessageActions } from "./message-actions";
+import { useChatStore } from "@/stores/chat-store";
 import type { MessageResponse, PartData, ToolPart, StepStartPart, StepFinishPart } from "@/types/message";
 import { computeDuration, type ActivityData, type ChainItem } from "@/stores/activity-store";
 
@@ -92,6 +94,9 @@ interface StreamingMessageProps {
 }
 
 export const StreamingMessage = memo(function StreamingMessage({ parts, streamingText, streamingReasoning }: StreamingMessageProps) {
+  const { t } = useTranslation("chat");
+  const isModelLoading = useChatStore((s) => s.isModelLoading);
+
   // Stabilize liveParts reference — without useMemo, a new array is created
   // on every render, breaking downstream useMemo dependencies in MessageContent.
   const liveParts = useMemo(() => {
@@ -105,6 +110,7 @@ export const StreamingMessage = memo(function StreamingMessage({ parts, streamin
   if (liveParts.length === 0) {
     return (
       <div className="animate-fade-in">
+        {isModelLoading && <StreamingStage label={t("loadingModel")} />}
         <StreamingIndicator />
       </div>
     );
@@ -127,7 +133,8 @@ export const StreamingMessage = memo(function StreamingMessage({ parts, streamin
   const showTail = !isActivelyStreaming && !hasRunningTool && !isGenerationDone;
 
   let stageLabel = "Preparing";
-  if (hasRunningTool) stageLabel = "Working with tools";
+  if (isModelLoading) stageLabel = t("loadingModel");
+  else if (hasRunningTool) stageLabel = "Working with tools";
   else if (isActivelyStreaming) stageLabel = "Drafting response";
   else if (hasAnyTool) stageLabel = "Finalizing output";
 

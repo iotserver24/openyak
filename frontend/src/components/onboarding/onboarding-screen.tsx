@@ -104,6 +104,7 @@ export function OnboardingScreen() {
       refreshToken: tokens.refresh_token,
       user,
     });
+    useSettingsStore.getState().setActiveProvider("openyak");
     qc.invalidateQueries({ queryKey: queryKeys.models });
     qc.invalidateQueries({ queryKey: queryKeys.openyakAccount });
   };

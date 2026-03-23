@@ -25,6 +25,9 @@ interface ChatStore {
   /** Current reasoning_delta buffer. */
   streamingReasoning: string;
 
+  // ─── Model loading (Ollama cold start) ───
+  isModelLoading: boolean;
+
   // ─── Interactive prompts ───
   pendingPermission: PermissionRequest | null;
   pendingQuestion: QuestionRequest | null;
@@ -52,6 +55,7 @@ interface ChatStore {
   clearQuestion: () => void;
   setPlanReview: (req: PlanReviewRequest) => void;
   clearPlanReview: () => void;
+  setModelLoading: (loading: boolean) => void;
   finishGeneration: () => void;
   reset: () => void;
 }
@@ -85,6 +89,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   streamingParts: [],
   streamingText: "",
   streamingReasoning: "",
+  isModelLoading: false,
   pendingPermission: null,
   pendingQuestion: null,
   pendingPlanReview: null,
@@ -93,6 +98,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   beginSending: (text, attachments) =>
     set({
       isGenerating: true,
+      isModelLoading: false,
       pendingUserText: text,
       pendingAttachments: attachments?.length ? attachments : null,
       streamingParts: [],
@@ -332,6 +338,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   setPlanReview: (req) => set({ pendingPlanReview: req }),
   clearPlanReview: () => set({ pendingPlanReview: null }),
 
+  setModelLoading: (loading) => set({ isModelLoading: loading }),
+
   finishGeneration: () =>
     set((s) => {
       const { parts } = flushBuffers(
@@ -342,6 +350,7 @@ export const useChatStore = create<ChatStore>((set) => ({
       return {
         streamId: null,
         isGenerating: false,
+        isModelLoading: false,
         pendingUserText: null,
         pendingAttachments: null,
         streamingParts: parts,
@@ -355,6 +364,7 @@ export const useChatStore = create<ChatStore>((set) => ({
       streamId: null,
       sessionId: null,
       isGenerating: false,
+      isModelLoading: false,
       pendingUserText: null,
       pendingAttachments: null,
       streamingParts: [],

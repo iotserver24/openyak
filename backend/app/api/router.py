@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from app.api import agents as agents_api
 from app.api import artifacts as artifacts_api
 from app.api import automations as automations_api
+from app.api import ollama as ollama_api
 from app.api import chat as chat_api
 from app.api import config as config_api
 from app.api import connectors as connectors_api
@@ -45,3 +46,4 @@ api_router.include_router(google_auth_api.router, tags=["google"])
 api_router.include_router(plugins_api.router, tags=["plugins"])
 api_router.include_router(remote_api.router, tags=["remote"])
 api_router.include_router(automations_api.router, tags=["automations"])
+api_router.include_router(ollama_api.router, tags=["ollama"])

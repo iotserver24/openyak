@@ -2,6 +2,7 @@
   "greeting": "What do you want to produce today?",
   "subtitle": "Desktop workspace for focused office tasks and deliverables",
   "placeholder": "Describe the outcome you want",
+  "noModelPlaceholder": "No model available — configure a provider in Settings first",
   "placeholderMention": " (@ to mention files)",
   "inputHint": "Enter to send, Shift+Enter for newline. Verify important outputs before sharing.",
   "attachFile": "Attach file",
@@ -146,5 +147,10 @@
   "questionOtherPlaceholder": "Type your answer...",
   "questionSubmitAll": "Submit answers",
   "questionEscCancel": "Esc to cancel",
-  "questionPreviewPlaceholder": "Select an option to see preview"
+  "questionPreviewPlaceholder": "Select an option to see preview",
+
+  "loadingModel": "Loading model into memory...",
+  "setupProvider": "Set up an AI provider to start chatting",
+  "setupProviderDesc": "Connect your OpenYak account, add an API key, or set up a local model.",
+  "configureSettings": "Configure"
 }

@@ -32,6 +32,9 @@ Thumbs.db
 # === Claude local config ===
 .claude/
 
+# === Ollama runtime binaries ===
+backend/ollama/
+
 # === Build artifacts ===
 dist/
 build/
