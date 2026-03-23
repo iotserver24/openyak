@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useChat } from "@/hooks/use-chat";
@@ -43,6 +43,12 @@ export function ChatView({ sessionId }: ChatViewProps) {
     pendingPlanReview,
   } = useChat(sessionId);
 
+  // Refs to access latest values in cleanup without re-triggering the effect
+  const isGeneratingRef = useRef(isGenerating);
+  isGeneratingRef.current = isGenerating;
+  const stopRef = useRef(stopGeneration);
+  stopRef.current = stopGeneration;
+
   const { messages, isLoading, hasPreviousPage, isFetchingPreviousPage, fetchPreviousPage } = useMessages(sessionId);
 
   const { data: session } = useQuery({
@@ -51,10 +57,15 @@ export function ChatView({ sessionId }: ChatViewProps) {
     staleTime: 30_000,
   });
 
-  // Close right-side panels when switching sessions
+  // Close right-side panels when switching sessions; abort generation if active
   useEffect(() => {
     useArtifactStore.getState().clearAll();
     useActivityStore.getState().close();
+    return () => {
+      if (isGeneratingRef.current) {
+        stopRef.current();
+      }
+    };
   }, [sessionId]);
 
   // Copy last assistant message to clipboard

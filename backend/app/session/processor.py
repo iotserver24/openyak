@@ -54,6 +54,7 @@ from app.session.system_prompt import build_system_prompt
 from app.session.title import generate_title
 from app.streaming.events import (
     AGENT_ERROR,
+    DONE,
     MODEL_LOADING,
     PERMISSION_REQUEST,
     REASONING_DELTA,
@@ -377,12 +378,17 @@ async def run_generation(
         )
         await prompt.run()
     except IntegrityError:
-        # Session was deleted while generation was in-flight — stop silently.
+        # Session was deleted while generation was in-flight — notify frontend
+        # so it can exit the generating state, then stop.
         logger.info(
             "Session %s deleted during generation, stopping stream %s",
             job.session_id,
             job.stream_id,
         )
+        job.publish(SSEEvent(DONE, {
+            "session_id": job.session_id,
+            "finish_reason": "aborted",
+        }))
     except Exception as e:
         logger.exception("Generation error for stream %s", job.stream_id)
         job.publish(SSEEvent(AGENT_ERROR, {"error_message": str(e)}))
@@ -1110,12 +1116,43 @@ class SessionProcessor:
                     continue
 
                 except RejectedError as e:
+                    rejected_msg = f"Permission denied: {e.permission}"
                     job.publish(
-                        SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": f"Permission denied: {e.permission}"})
+                        SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": rejected_msg})
                     )
+                    try:
+                        async with session_factory() as db:
+                            async with db.begin():
+                                await update_part_data(
+                                    db,
+                                    tool_part_id,
+                                    {
+                                        "type": "tool",
+                                        "tool": tool.id,
+                                        "call_id": call_id,
+                                        "state": {"status": "error", "input": tool_args, "output": rejected_msg},
+                                    },
+                                )
+                    except Exception:
+                        logger.warning("Failed to persist RejectedError state for tool %s", tool.id)
                 except Exception as e:
                     logger.exception("Tool execution error: %s", tool.id)
                     job.publish(SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": str(e)}))
+                    try:
+                        async with session_factory() as db:
+                            async with db.begin():
+                                await update_part_data(
+                                    db,
+                                    tool_part_id,
+                                    {
+                                        "type": "tool",
+                                        "tool": tool.id,
+                                        "call_id": call_id,
+                                        "state": {"status": "error", "input": tool_args, "output": str(e)},
+                                    },
+                                )
+                    except Exception:
+                        logger.warning("Failed to persist error state for tool %s", tool.id)
 
         # --- Cost tracking ---
         if self.usage_data and sp.model_info:

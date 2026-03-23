@@ -45,37 +45,40 @@ class McpManager:
                 logger.info("MCP server '%s' is disabled, skipping", name)
                 continue
 
-            client = McpClient(name, config)
+            try:
+                client = McpClient(name, config)
 
-            # Inject stored OAuth token if available
-            stored = self._token_store.get(name)
-            if stored and not stored.expired:
-                client.set_oauth_token(stored.access_token)
-            elif stored and stored.expired and stored.refresh_token:
-                # Try to refresh
-                auth_meta = self._token_store.get_auth_meta(name)
-                if auth_meta:
-                    try:
-                        new_tokens = await refresh_token(auth_meta, stored.refresh_token)
-                        self._token_store.save(name, new_tokens, auth_meta)
-                        client.set_oauth_token(new_tokens.access_token)
-                        logger.info("Refreshed OAuth token for MCP server '%s'", name)
-                    except Exception as e:
-                        logger.warning("Token refresh failed for '%s': %s", name, e)
+                # Inject stored OAuth token if available
+                stored = self._token_store.get(name)
+                if stored and not stored.expired:
+                    client.set_oauth_token(stored.access_token)
+                elif stored and stored.expired and stored.refresh_token:
+                    # Try to refresh
+                    auth_meta = self._token_store.get_auth_meta(name)
+                    if auth_meta:
+                        try:
+                            new_tokens = await refresh_token(auth_meta, stored.refresh_token)
+                            self._token_store.save(name, new_tokens, auth_meta)
+                            client.set_oauth_token(new_tokens.access_token)
+                            logger.info("Refreshed OAuth token for MCP server '%s'", name)
+                        except Exception as e:
+                            logger.warning("Token refresh failed for '%s': %s", name, e)
 
-            await client.connect()
+                await client.connect()
 
-            # If connection failed and it's a remote server without a token,
-            # mark as needs_auth instead of failed
-            if (
-                client.status == "failed"
-                and client.server_type != "local"
-                and not client._oauth_token
-            ):
-                client.status = "needs_auth"
-                client.error = None
+                # If connection failed and it's a remote server without a token,
+                # mark as needs_auth instead of failed
+                if (
+                    client.status == "failed"
+                    and client.server_type != "local"
+                    and not client._oauth_token
+                ):
+                    client.status = "needs_auth"
+                    client.error = None
 
-            self._clients[name] = client
+                self._clients[name] = client
+            except Exception as e:
+                logger.error("MCP server '%s' failed to start: %s — skipping", name, e)
 
         connected = sum(1 for c in self._clients.values() if c.status == "connected")
         total = len(self._clients)

@@ -30,6 +30,13 @@ interface ChatFormProps {
   directory?: string | null;
 }
 
+/** Ephemeral per-session draft cache (module-level, not persisted to storage). */
+interface Draft {
+  input: string;
+  attachments: FileAttachment[];
+}
+const draftCache = new Map<string, Draft>();
+
 function mergeAttachments(
   existing: FileAttachment[],
   incoming: FileAttachment[],
@@ -107,6 +114,34 @@ export function ChatForm({ isGenerating, onSend, onStop, className, sessionId, d
   const { data: providerModels, activeProvider } = useProviderModels();
   const noModelsAvailable = !activeProvider || providerModels.length === 0;
 
+  const sendingRef = useRef(false);
+
+  // Track latest values for draft save-on-unmount (avoids stale closures)
+  const inputRef = useRef(input);
+  const attachmentsRef = useRef(attachments);
+  inputRef.current = input;
+  attachmentsRef.current = attachments;
+
+  const draftKey = sessionId ?? "__new__";
+
+  // Restore draft on mount (keyed by draftKey)
+  useEffect(() => {
+    const saved = draftCache.get(draftKey);
+    if (saved) {
+      setInput(saved.input);
+      setAttachments(saved.attachments);
+      draftCache.delete(draftKey);
+    }
+    // Save draft on unmount
+    return () => {
+      const currentInput = inputRef.current;
+      const currentAttachments = attachmentsRef.current;
+      if (currentInput.trim() || currentAttachments.length > 0) {
+        draftCache.set(draftKey, { input: currentInput, attachments: currentAttachments });
+      }
+    };
+  }, [draftKey]);
+
   // @mention state
   const [mentionActive, setMentionActive] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
@@ -144,22 +179,29 @@ export function ChatForm({ isGenerating, onSend, onStop, className, sessionId, d
   }, [sessionId, effectiveWorkspace]);
 
   const handleSend = useCallback(async () => {
-    if ((!input.trim() && attachments.length === 0) || isGenerating) return;
-    const text = input;
-    const files = attachments;
-    setInput("");
-    setAttachments([]);
-    setMentionActive(false);
-    if (ref.current) {
-      ref.current.style.height = "auto";
+    if (sendingRef.current || (!input.trim() && attachments.length === 0) || isGenerating) return;
+    sendingRef.current = true;
+    try {
+      const text = input;
+      const files = attachments;
+      setInput("");
+      setAttachments([]);
+      setMentionActive(false);
+      if (ref.current) {
+        ref.current.style.height = "auto";
+      }
+      const result = await onSend(text, files.length > 0 ? files : undefined);
+      // Restore input if send failed
+      if (result === false) {
+        setInput(text);
+        setAttachments(files);
+      } else {
+        draftCache.delete(draftKey);
+      }
+    } finally {
+      sendingRef.current = false;
     }
-    const result = await onSend(text, files.length > 0 ? files : undefined);
-    // Restore input if send failed
-    if (result === false) {
-      setInput(text);
-      setAttachments(files);
-    }
-  }, [input, attachments, isGenerating, onSend, ref]);
+  }, [input, attachments, isGenerating, onSend, ref, draftKey]);
 
   const handleBrowse = useCallback(async () => {
     setUploading(true);

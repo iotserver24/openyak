@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { API, IS_DESKTOP, queryKeys, resolveApiUrl } from "@/lib/constants";
+import { api } from "@/lib/api";
+import { useChatStore } from "@/stores/chat-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { useSessions, useDeleteSession, useRenameSession, useSearchSessions } from "@/hooks/use-sessions";
 import { SessionItem } from "./session-item";
@@ -223,6 +225,14 @@ export function SessionList() {
   const handleDeleteConfirm = useCallback(() => {
     if (!deleteTarget) return;
     const { id } = deleteTarget;
+
+    // If the session being deleted has active generation, abort it first
+    const chatState = useChatStore.getState();
+    if (chatState.sessionId === id && chatState.isGenerating && chatState.streamId) {
+      api.post(API.CHAT.ABORT, { stream_id: chatState.streamId }).catch(() => {});
+      chatState.finishGeneration();
+    }
+
     const activeSessionId = resolveSessionId(
       typeof params.sessionId === "string" ? params.sessionId : null,
       searchParams.get("sessionId"),

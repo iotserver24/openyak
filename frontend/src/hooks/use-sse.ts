@@ -648,9 +648,11 @@ export function useSSE(streamId: string | null) {
         reasoningBufferRef.current = null;
         client.close();
         clientRef.current = null;
-        // Don't reset connection status to "idle" if still generating —
-        // the new mount will reconnect and update status.
-        if (!store.getState().isGenerating) {
+        if (store.getState().isGenerating) {
+          // Reset module-level state so a future stream doesn't inherit stale values
+          persistedLastEventId = 0;
+          currentStreamId = null;
+        } else {
           connectionStore.getState().setStatus("idle");
         }
       };

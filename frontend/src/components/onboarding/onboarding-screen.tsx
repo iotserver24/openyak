@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -23,7 +24,7 @@ import { API, IS_DESKTOP, queryKeys } from "@/lib/constants";
 import { desktopAPI } from "@/lib/tauri-api";
 
 const PROXY_URL =
-  process.env.NEXT_PUBLIC_DEFAULT_PROXY_URL || "https://museproxy.doxmind.com";
+  process.env.NEXT_PUBLIC_DEFAULT_PROXY_URL || "https://open-yak.com";
 
 type Step = "welcome" | "auth" | "done";
 
@@ -40,6 +41,7 @@ const slideVariants = {
 };
 
 export function OnboardingScreen() {
+  const router = useRouter();
   const authStore = useAuthStore();
   const completeOnboarding = useSettingsStore((s) => s.completeOnboarding);
   const qc = useQueryClient();
@@ -186,6 +188,7 @@ export function OnboardingScreen() {
 
   const handleSkip = () => {
     completeOnboarding();
+    router.push("/models");
   };
 
   const handleFinish = () => {
