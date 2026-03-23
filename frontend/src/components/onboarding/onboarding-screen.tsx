@@ -24,7 +24,7 @@ import { API, IS_DESKTOP, queryKeys } from "@/lib/constants";
 import { desktopAPI } from "@/lib/tauri-api";
 
 const PROXY_URL =
-  process.env.NEXT_PUBLIC_DEFAULT_PROXY_URL || "https://open-yak.com";
+  process.env.NEXT_PUBLIC_DEFAULT_PROXY_URL || "https://api.open-yak.com";
 
 type Step = "welcome" | "auth" | "done";
 

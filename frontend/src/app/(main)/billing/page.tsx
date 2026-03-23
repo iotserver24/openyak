@@ -219,7 +219,7 @@ export default function BillingPage() {
 
   const checkoutReturnBase = proxyUrl
     ? `${proxyUrl.replace(/\/$/, "")}/api/billing/checkout-return`
-    : "https://museproxy.doxmind.com/api/billing/checkout-return";
+    : "https://api.open-yak.com/api/billing/checkout-return";
 
   const { data: balance, isLoading: balanceLoading, refetch: balanceRefetch } = useQuery({
     queryKey: ["billing", "balance"],

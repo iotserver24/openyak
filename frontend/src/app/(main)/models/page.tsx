@@ -38,7 +38,7 @@ export default function ModelsPage() {
   const qc = useQueryClient();
 
   const [proxyUrlInput, setProxyUrlInput] = useState(
-    process.env.NEXT_PUBLIC_DEFAULT_PROXY_URL || "https://museproxy.doxmind.com",
+    process.env.NEXT_PUBLIC_DEFAULT_PROXY_URL || "https://api.open-yak.com",
   );
   const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
