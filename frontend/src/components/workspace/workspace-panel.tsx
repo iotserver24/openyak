@@ -14,7 +14,7 @@ export function WorkspacePanel() {
         ...(IS_DESKTOP ? { top: TITLE_BAR_HEIGHT } : {}),
       }}
     >
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-3 space-y-3">
         <ProgressCard />
         <FilesCard />
         <ContextCard />

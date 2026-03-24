@@ -37,7 +37,7 @@ function TaskClientInner({ sessionId }: { sessionId: string }) {
   // No custom header — ChatHeader inside ChatView handles everything.
   // In remote mode, ChatHeader shows back button instead of sidebar toggle.
   return (
-    <div className="flex flex-col h-dvh pt-[env(safe-area-inset-top)]">
+    <div className="flex flex-col h-full pt-[env(safe-area-inset-top)]">
       <ChatView sessionId={resolvedId} />
     </div>
   );

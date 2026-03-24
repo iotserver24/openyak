@@ -405,7 +405,7 @@ export function SessionList() {
         aria-label="Conversation list"
         tabIndex={0}
         onKeyDown={handleListKeyDown}
-        className="flex-1 overflow-y-auto outline-none pt-1"
+        className="flex-1 overflow-y-auto overscroll-contain outline-none pt-1"
       >
         <div
           className="relative w-full"

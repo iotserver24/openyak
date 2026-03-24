@@ -21,7 +21,7 @@ export function Sidebar() {
         style={IS_DESKTOP ? { top: TITLE_BAR_HEIGHT } : undefined}
         initial={false}
         animate={{ width: isCollapsed ? 0 : SIDEBAR_WIDTH }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        transition={{ type: "tween", duration: 0.2, ease: "easeOut" }}
       >
         <SidebarHeader />
         <SidebarNav />

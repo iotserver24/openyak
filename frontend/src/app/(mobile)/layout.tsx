@@ -28,7 +28,7 @@ const BACKEND_PROVIDER_MAP: Record<string, string> = {
 
 function MobileLoadingScreen() {
   return (
-    <div className="flex flex-col items-center justify-center h-dvh gap-4">
+    <div className="flex flex-col items-center justify-center h-full gap-4">
       <div className="relative w-10 h-10">
         <div className="absolute inset-0 rounded-full border-2 border-[var(--border-default)]" />
         <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[var(--text-primary)] animate-spin" />
@@ -164,7 +164,7 @@ function MobileLayoutInner({ children }: { children: React.ReactNode }) {
 
 export default function MobileLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="h-dvh flex flex-col bg-[var(--surface-primary)] text-[var(--text-primary)]">
+    <div className="h-full flex flex-col bg-[var(--surface-primary)] text-[var(--text-primary)]">
       <Suspense fallback={<MobileLoadingScreen />}>
         <MobileLayoutInner>{children}</MobileLayoutInner>
       </Suspense>

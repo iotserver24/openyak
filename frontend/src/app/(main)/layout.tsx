@@ -183,7 +183,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const isChatPage = pathname?.startsWith("/c/") ?? false;
 
   return (
-    <div className="h-dvh overflow-hidden">
+    <div className="h-full overflow-hidden">
       {/* Skip link for keyboard navigation */}
       <a
         href="#main-content"
@@ -257,7 +257,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <motion.main
         id="main-content"
         tabIndex={-1}
-        className="h-dvh flex flex-col outline-none"
+        className="h-full flex flex-col outline-none"
         style={{
           paddingTop: titleBarPadding,
           marginLeft,

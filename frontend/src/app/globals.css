@@ -126,7 +126,15 @@
     border-color: var(--border-default);
   }
 
+  html {
+    height: 100%;
+    overflow: hidden;
+  }
+
   body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
     background: var(--surface-primary);
     color: var(--text-primary);
     font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
