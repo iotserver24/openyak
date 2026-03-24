@@ -23,8 +23,8 @@ import { Button } from "@/components/ui/button";
 import { OpenYakLogo } from "@/components/ui/openyak-logo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebarStore } from "@/stores/sidebar-store";
-import { useSettingsStore } from "@/stores/settings-store";
-import { useAuthStore } from "@/stores/auth-store";
+import { useSettingsStore, useSettingsHasHydrated } from "@/stores/settings-store";
+import { useAuthStore, useAuthHasHydrated } from "@/stores/auth-store";
 import { useAutoDetectProvider } from "@/hooks/use-auto-detect-provider";
 import { useActivityStore } from "@/stores/activity-store";
 import { useArtifactStore } from "@/stores/artifact-store";
@@ -68,6 +68,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const qc = useQueryClient();
   useAutoDetectProvider();
 
+  const authHydrated = useAuthHasHydrated();
+  const settingsHydrated = useSettingsHasHydrated();
+
   // Onboarding gate — show onboarding if first run and not already connected
   const hasCompletedOnboarding = useSettingsStore((s) => s.hasCompletedOnboarding);
   const isConnected = useAuthStore((s) => s.isConnected);
@@ -80,8 +83,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [showSplash, setShowSplash] = useState(false);
   useEffect(() => {
     setShowSplash(IS_DESKTOP);
-    setNeedsOnboarding(!hasCompletedOnboarding && !isConnected);
-  }, [hasCompletedOnboarding, isConnected]);
+    if (authHydrated && settingsHydrated) {
+      setNeedsOnboarding(!hasCompletedOnboarding && !isConnected);
+    }
+  }, [hasCompletedOnboarding, isConnected, authHydrated, settingsHydrated]);
 
   useEffect(() => {
     if (!IS_DESKTOP || !isConnected || !proxyUrl || !accessToken) return;

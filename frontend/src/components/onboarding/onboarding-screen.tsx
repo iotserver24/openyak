@@ -210,14 +210,13 @@ export function OnboardingScreen() {
   };
 
   return (
-    <motion.div
-      className="fixed inset-0 z-[9998] flex items-center justify-center bg-[var(--surface-primary)]"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.4 }}
-    >
-      <div className="w-full max-w-sm px-6">
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-[var(--surface-primary)]">
+      <motion.div
+        className="w-full max-w-sm px-6"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+      >
         <AnimatePresence mode="wait" custom={direction}>
           {/* ─── Welcome ─── */}
           {step === "welcome" && (
@@ -500,7 +499,7 @@ export function OnboardingScreen() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }

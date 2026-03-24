@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -179,3 +180,17 @@ export const useSettingsStore = create<SettingsStore>()(
     },
   ),
 );
+
+// Hydration tracking
+const useSettingsHasHydrated = () => {
+  const [hydrated, setHydrated] = useState(useSettingsStore.persist.hasHydrated());
+  useEffect(() => {
+    const unsub = useSettingsStore.persist.onFinishHydration(() => setHydrated(true));
+    return () => {
+      unsub();
+    };
+  }, []);
+  return hydrated;
+};
+
+export { useSettingsHasHydrated };
