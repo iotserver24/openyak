@@ -22,12 +22,24 @@ export default function RemotePage() {
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [showQr, setShowQr] = useState(false);
-  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [qrBlobUrl, setQrBlobUrl] = useState<string | null>(null);
   const [fullToken, setFullToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [permMode, setPermMode] = useState("auto");
   const [tunnelChanged, setTunnelChanged] = useState(false);
   const prevTunnelUrl = useRef<string | null>(null);
+
+  // Fetch QR image as blob URL to bypass Tauri CSP (img-src blocks http://127.0.0.1)
+  const fetchQrBlob = async () => {
+    try {
+      const backendUrl = IS_DESKTOP ? await getBackendUrl() : "";
+      const res = await fetch(`${backendUrl}${API.REMOTE.QR}?t=${Date.now()}`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      // Revoke previous blob URL to avoid memory leaks
+      setQrBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
+    } catch {}
+  };
 
   const fetchStatus = async () => {
     try {
@@ -40,12 +52,7 @@ export default function RemotePage() {
         if (prevTunnelUrl.current !== null && data.tunnel_url && data.tunnel_url !== prevTunnelUrl.current) {
           setTunnelChanged(true);
           // Auto-refresh QR code when URL changes
-          if (showQr) {
-            try {
-              const backendUrl = IS_DESKTOP ? await getBackendUrl() : "";
-              setQrUrl(`${backendUrl}${API.REMOTE.QR}?t=${Date.now()}`);
-            } catch {}
-          }
+          if (showQr) { fetchQrBlob(); }
         }
         prevTunnelUrl.current = data.tunnel_url ?? null;
       }
@@ -72,17 +79,14 @@ export default function RemotePage() {
     try {
       if (status.enabled) {
         await api.post(API.REMOTE.DISABLE);
-        setShowQr(false); setQrUrl(null); setFullToken(null);
+        setShowQr(false); setQrBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; }); setFullToken(null);
         prevTunnelUrl.current = null;
       } else {
         const result = await api.post<{ token: string; tunnel_url: string | null }>(API.REMOTE.ENABLE);
         setFullToken(result.token);
         await fetchStatus();
-        try {
-          const backendUrl = IS_DESKTOP ? await getBackendUrl() : "";
-          setQrUrl(`${backendUrl}${API.REMOTE.QR}?t=${Date.now()}`);
-          setShowQr(true);
-        } catch {}
+        await fetchQrBlob();
+        setShowQr(true);
         return;
       }
       await fetchStatus();
@@ -95,12 +99,9 @@ export default function RemotePage() {
 
   const handleShowQr = async () => {
     if (showQr) { setShowQr(false); return; }
-    try {
-      const backendUrl = IS_DESKTOP ? await getBackendUrl() : "";
-      setQrUrl(`${backendUrl}${API.REMOTE.QR}?t=${Date.now()}`);
-      setShowQr(true);
-      setTunnelChanged(false);
-    } catch {}
+    await fetchQrBlob();
+    setShowQr(true);
+    setTunnelChanged(false);
   };
 
   const handleRotateToken = async () => {
@@ -192,9 +193,9 @@ export default function RemotePage() {
                   </Button>
                 </div>
 
-                {showQr && qrUrl && (
+                {showQr && qrBlobUrl && (
                   <div className="flex justify-center p-4 rounded-lg bg-white">
-                    <img src={qrUrl} alt={t("remoteQrAlt")} className="w-48 h-48" style={{ imageRendering: "pixelated" }} />
+                    <img src={qrBlobUrl} alt={t("remoteQrAlt")} className="w-48 h-48" style={{ imageRendering: "pixelated" }} />
                   </div>
                 )}
 
