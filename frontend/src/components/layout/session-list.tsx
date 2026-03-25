@@ -6,11 +6,12 @@ import { useTranslation } from 'react-i18next';
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { API, IS_DESKTOP, queryKeys, resolveApiUrl } from "@/lib/constants";
+import { API, queryKeys } from "@/lib/constants";
 import { api } from "@/lib/api";
 import { useChatStore } from "@/stores/chat-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { useSessions, useDeleteSession, useRenameSession, usePinSession, useSearchSessions } from "@/hooks/use-sessions";
+import { useSessionExport } from "@/hooks/use-session-export";
 import { SessionItem } from "./session-item";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +20,15 @@ import { getChatRoute, resolveSessionId } from "@/lib/routes";
 import { cn, groupSessionsByDate } from "@/lib/utils";
 import type { SessionResponse } from "@/types/session";
 
+function useActiveSessionId() {
+  const params = useParams();
+  const searchParams = useSearchParams();
+  return resolveSessionId(
+    typeof params.sessionId === "string" ? params.sessionId : null,
+    searchParams.get("sessionId"),
+  );
+}
+
 type FlatItem =
   | { type: "header"; label: string }
   | { type: "session"; session: SessionResponse; snippet?: string };
@@ -26,8 +36,7 @@ type FlatItem =
 export function SessionList() {
   const { t } = useTranslation('common');
   const router = useRouter();
-  const params = useParams();
-  const searchParams = useSearchParams();
+  const activeSessionId = useActiveSessionId();
   const {
     data: sessionPages,
     isLoading,
@@ -40,6 +49,7 @@ export function SessionList() {
   const deleteSession = useDeleteSession();
   const renameSession = useRenameSession();
   const pinSession = usePinSession();
+  const { exportPdf, exportMarkdown } = useSessionExport();
   const queryClient = useQueryClient();
   const searchQuery = useSidebarStore((s) => s.searchQuery);
   const isContentSearch = searchQuery.trim().length >= 2;
@@ -250,11 +260,6 @@ export function SessionList() {
       chatState.finishGeneration();
     }
 
-    const activeSessionId = resolveSessionId(
-      typeof params.sessionId === "string" ? params.sessionId : null,
-      searchParams.get("sessionId"),
-    );
-
     // Save the current cache so we can restore on undo
     const previousData = queryClient.getQueryData<InfiniteData<SessionResponse[]>>(
       queryKeys.sessions.all,
@@ -310,7 +315,7 @@ export function SessionList() {
     });
 
     setDeleteTarget(null);
-  }, [deleteTarget, deleteSession, params.sessionId, router, searchParams, t, queryClient]);
+  }, [deleteTarget, deleteSession, activeSessionId, router, t, queryClient]);
 
   const handleDeleteCancel = useCallback(() => {
     setDeleteTarget(null);
@@ -332,69 +337,6 @@ export function SessionList() {
     setEditingId(null);
   }, []);
 
-  const handleExportPdf = useCallback(async (id: string, title: string) => {
-    try {
-      const exportUrl = resolveApiUrl(API.SESSIONS.EXPORT_PDF(id));
-
-      if (IS_DESKTOP) {
-        const { desktopAPI } = await import("@/lib/tauri-api");
-        await desktopAPI.downloadAndSave({ url: exportUrl, defaultName: `${title}.pdf` });
-      } else {
-        const res = await fetch(exportUrl);
-        if (!res.ok) throw new Error("PDF export failed");
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-
-        let filename = `${title}.pdf`;
-        const disposition = res.headers.get("Content-Disposition");
-        if (disposition) {
-          const utf8Match = disposition.match(/filename\*=UTF-8''(.+?)(?:;|$)/);
-          if (utf8Match) {
-            filename = decodeURIComponent(utf8Match[1]);
-          } else {
-            const asciiMatch = disposition.match(/filename="(.+?)"/);
-            if (asciiMatch) filename = asciiMatch[1];
-          }
-        }
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-    } catch (err) {
-      console.error("PDF export failed:", err);
-      toast.error(t('failedExportPdf'));
-    }
-  }, []);
-
-  const handleExportMarkdown = useCallback(async (id: string, title: string) => {
-    try {
-      const exportUrl = resolveApiUrl(API.SESSIONS.EXPORT_MD(id));
-
-      if (IS_DESKTOP) {
-        const { desktopAPI } = await import("@/lib/tauri-api");
-        await desktopAPI.downloadAndSave({ url: exportUrl, defaultName: `${title}.md` });
-      } else {
-        const res = await fetch(exportUrl);
-        if (!res.ok) throw new Error("Markdown export failed");
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${title}.md`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-    } catch (err) {
-      console.error("Markdown export failed:", err);
-      toast.error(t('failedExportMarkdown', { defaultValue: 'Failed to export Markdown' }));
-    }
-  }, []);
 
   if (isLoading || (isContentSearch && isSearching) || (isError && sessions.length === 0)) {
     return (
@@ -471,10 +413,11 @@ export function SessionList() {
                 ) : (
                   <SessionItem
                     session={item.session}
+                    isActive={activeSessionId === item.session.id}
                     onDelete={handleDeleteRequest}
                     onRename={handleRename}
-                    onExportPdf={handleExportPdf}
-                    onExportMarkdown={handleExportMarkdown}
+                    onExportPdf={exportPdf}
+                    onExportMarkdown={exportMarkdown}
                     onTogglePin={handleTogglePin}
                     isEditing={editingId === item.session.id}
                     onEditStart={handleEditStart}
