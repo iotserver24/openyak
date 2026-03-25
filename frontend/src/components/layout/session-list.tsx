@@ -13,7 +13,6 @@ import { useSidebarStore } from "@/stores/sidebar-store";
 import { useSessions, useDeleteSession, useRenameSession, usePinSession, useSearchSessions } from "@/hooks/use-sessions";
 import { useActiveSessionId } from "@/hooks/use-active-session-id";
 import { useSessionExport } from "@/hooks/use-session-export";
-import { useScrollbarActivity } from "@/hooks/use-scrollbar-activity";
 import { SessionItem } from "./session-item";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -125,7 +124,6 @@ export function SessionList() {
   }, [pinned, grouped, snippetMap]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  useScrollbarActivity(scrollRef);
   const virtualizer = useVirtualizer({
     count: flatItems.length,
     getScrollElement: () => scrollRef.current,

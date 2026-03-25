@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { File as FileIcon } from "lucide-react";
-import { useScrollbarActivity } from "@/hooks/use-scrollbar-activity";
 import { searchFiles, type FileSearchResult } from "@/lib/upload";
 import { cn } from "@/lib/utils";
 
@@ -26,8 +25,6 @@ export function FileMentionPopup({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  useScrollbarActivity(listRef);
 
   // Fetch results with debounce
   useEffect(() => {

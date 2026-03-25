@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+const SCROLLBAR_IDLE_MS = 1500;
+
 /**
  * Auto-scroll to bottom of a container when new content is added,
  * unless the user has explicitly scrolled up.
@@ -65,7 +67,7 @@ export function useScrollAnchor() {
       // Hide after 1.5s of inactivity
       idleTimeoutId = window.setTimeout(() => {
         el.classList.remove("scrolling");
-      }, 1500);
+      }, SCROLLBAR_IDLE_MS);
     };
 
     // --- touch (mobile) ---
@@ -101,7 +103,7 @@ export function useScrollAnchor() {
         // Hide after 1.5s of inactivity
         scrollIdleTimeoutId = window.setTimeout(() => {
           el.classList.remove("scrolling");
-        }, 1500);
+        }, SCROLLBAR_IDLE_MS);
 
         const atBottom = checkAtBottom();
         updateIsAtBottom(atBottom);

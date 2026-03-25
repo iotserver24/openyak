@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
-import { useScrollbarActivity } from "@/hooks/use-scrollbar-activity";
 import { cn } from "@/lib/utils";
 
 const Command = React.forwardRef<
@@ -42,26 +41,13 @@ CommandInput.displayName = CommandPrimitive.Input.displayName;
 const CommandList = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.List>
->(({ className, ...props }, ref) => {
-  const listRef = React.useRef<React.ComponentRef<typeof CommandPrimitive.List>>(null);
-
-  useScrollbarActivity(listRef);
-
-  return (
-    <CommandPrimitive.List
-      ref={(node) => {
-        listRef.current = node;
-        if (typeof ref === "function") {
-          ref(node);
-        } else if (ref) {
-          ref.current = node;
-        }
-      }}
-      className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden scrollbar-auto", className)}
-      {...props}
-    />
-  );
-});
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.List
+    ref={ref}
+    className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden scrollbar-auto", className)}
+    {...props}
+  />
+));
 CommandList.displayName = CommandPrimitive.List.displayName;
 
 const CommandEmpty = React.forwardRef<

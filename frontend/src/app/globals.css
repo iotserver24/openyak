@@ -157,11 +157,9 @@
     background: transparent;
   }
 
-  /* Default: scrollbar thumb is invisible with smooth fade-in/out transition */
   .scrollbar-auto::-webkit-scrollbar-thumb {
     background: transparent;
     border-radius: 3px;
-    transition: background 0.4s ease;
   }
 
   /* Light theme: thumb visible when scrolling or when hovering over scrollable element */
