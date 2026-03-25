@@ -15,6 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from app.tool.subprocess_compat import get_subprocess_kwargs
+
 logger = logging.getLogger(__name__)
 
 # Pattern to extract tunnel URL from cloudflared output
@@ -65,6 +67,7 @@ class TunnelManager:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            **get_subprocess_kwargs(),
         )
 
         # Read output to find the tunnel URL (with timeout)

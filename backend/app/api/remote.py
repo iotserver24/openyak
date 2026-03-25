@@ -184,7 +184,7 @@ async def remote_qr(request: Request) -> Response:
         qr = qrcode.QRCode(version=None, box_size=8, border=2)
         qr.add_data(qr_data)
         qr.make(fit=True)
-        img: PilImage = qr.make_image(fill_color="white", back_color="black")
+        img: PilImage = qr.make_image(fill_color="black", back_color="white")
 
         buf = io.BytesIO()
         img.save(buf, format="PNG")

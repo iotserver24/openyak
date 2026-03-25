@@ -95,6 +95,12 @@ hiddenimports = [
     'numpy',
     'matplotlib',
 
+    # QR code generation (lazy import in remote.py)
+    'qrcode',
+    'qrcode.image',
+    'qrcode.image.pil',
+    'qrcode.main',
+
     # Utilities
     'ulid',
     'aiofiles',
