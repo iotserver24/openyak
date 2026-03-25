@@ -1,12 +1,10 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { ChatView } from "@/components/chat/chat-view";
-import { resolveSessionId } from "@/lib/routes";
+import { useActiveSessionId } from "@/hooks/use-active-session-id";
 
-export function SessionPageClient({ sessionId }: { sessionId: string }) {
-  const searchParams = useSearchParams();
-  const resolvedSessionId = resolveSessionId(sessionId, searchParams.get("sessionId"));
+export function SessionPageClient(_props: { sessionId: string }) {
+  const resolvedSessionId = useActiveSessionId();
 
   if (!resolvedSessionId) return null;
 

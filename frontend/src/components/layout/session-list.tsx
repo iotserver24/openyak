@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
-import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useTranslation } from 'react-i18next';
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -11,23 +11,16 @@ import { api } from "@/lib/api";
 import { useChatStore } from "@/stores/chat-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { useSessions, useDeleteSession, useRenameSession, usePinSession, useSearchSessions } from "@/hooks/use-sessions";
+import { useActiveSessionId } from "@/hooks/use-active-session-id";
 import { useSessionExport } from "@/hooks/use-session-export";
+import { useScrollbarActivity } from "@/hooks/use-scrollbar-activity";
 import { SessionItem } from "./session-item";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, MessageSquare, SearchX } from "lucide-react";
-import { getChatRoute, resolveSessionId } from "@/lib/routes";
+import { getChatRoute } from "@/lib/routes";
 import { cn, groupSessionsByDate } from "@/lib/utils";
 import type { SessionResponse } from "@/types/session";
-
-function useActiveSessionId() {
-  const params = useParams();
-  const searchParams = useSearchParams();
-  return resolveSessionId(
-    typeof params.sessionId === "string" ? params.sessionId : null,
-    searchParams.get("sessionId"),
-  );
-}
 
 type FlatItem =
   | { type: "header"; label: string }
@@ -132,6 +125,7 @@ export function SessionList() {
   }, [pinned, grouped, snippetMap]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  useScrollbarActivity(scrollRef);
   const virtualizer = useVirtualizer({
     count: flatItems.length,
     getScrollElement: () => scrollRef.current,
@@ -386,7 +380,7 @@ export function SessionList() {
         aria-label="Conversation list"
         tabIndex={0}
         onKeyDown={handleListKeyDown}
-        className="flex-1 overflow-y-auto overscroll-contain outline-none pt-1"
+        className="flex-1 overflow-y-auto overscroll-contain outline-none pt-1 scrollbar-auto"
       >
         <div
           className="relative w-full"

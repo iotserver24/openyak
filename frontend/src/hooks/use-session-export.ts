@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { API, IS_DESKTOP, resolveApiUrl } from "@/lib/constants";
@@ -28,6 +28,8 @@ function parseFilename(res: Response, fallback: string): string {
 
 export function useSessionExport() {
   const { t } = useTranslation("common");
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const exportPdf = useCallback(async (id: string, title: string) => {
     try {
@@ -43,9 +45,9 @@ export function useSessionExport() {
       }
     } catch (err) {
       console.error("PDF export failed:", err);
-      toast.error(t("failedExportPdf"));
+      toast.error(tRef.current("failedExportPdf"));
     }
-  }, [t]);
+  }, []);
 
   const exportMarkdown = useCallback(async (id: string, title: string) => {
     try {
@@ -61,9 +63,9 @@ export function useSessionExport() {
       }
     } catch (err) {
       console.error("Markdown export failed:", err);
-      toast.error(t("failedExportMarkdown", { defaultValue: "Failed to export Markdown" }));
+      toast.error(tRef.current("failedExportMarkdown", { defaultValue: "Failed to export Markdown" }));
     }
-  }, [t]);
+  }, []);
 
   return { exportPdf, exportMarkdown };
 }
