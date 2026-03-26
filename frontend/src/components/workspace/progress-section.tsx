@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckCircle2, Circle, Loader2, ChevronDown } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useWorkspaceStore, type WorkspaceTodo } from "@/stores/workspace-store";
 import { cn } from "@/lib/utils";
 
@@ -49,7 +50,7 @@ export function ProgressCard() {
   return (
     <div className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-secondary)] overflow-hidden">
       <button
-        className="flex items-center justify-between w-full px-4 py-3 text-left hover:bg-[var(--surface-tertiary)]/50 transition-colors"
+        className="flex items-center justify-between w-full px-4 py-3 text-left transition-colors"
         onClick={() => toggleSection("progress")}
       >
         <span className="text-sm font-medium text-[var(--text-primary)]">
@@ -62,13 +63,23 @@ export function ProgressCard() {
           )}
         />
       </button>
-      {!collapsed && (
-        <div className="px-4 pb-3 space-y-0.5">
-          {todos.map((todo, i) => (
-            <TodoItem key={`${todo.content}-${i}`} todo={todo} />
-          ))}
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-3 space-y-0.5">
+              {todos.map((todo, i) => (
+                <TodoItem key={`${todo.content}-${i}`} todo={todo} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

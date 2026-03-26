@@ -41,7 +41,7 @@ export function SidebarNav() {
           "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-all duration-150 ease-out",
           isSearchOpen
             ? "bg-[var(--sidebar-active)] text-[var(--text-primary)] shadow-[var(--sidebar-active-shadow)] ring-1 ring-[var(--sidebar-active-border)]"
-            : "text-[var(--text-secondary)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text-primary)] active:scale-[0.98]",
+            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] active:scale-[0.98]",
         )}
       >
         <Search className="h-[18px] w-[18px] shrink-0" />
@@ -86,7 +86,7 @@ export function SidebarNav() {
               "relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-all duration-150 ease-out",
               isActive
                 ? "bg-[var(--sidebar-active)] text-[var(--text-primary)] shadow-[var(--sidebar-active-shadow)] ring-1 ring-[var(--sidebar-active-border)]"
-                : "text-[var(--text-secondary)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text-primary)] active:scale-[0.98]",
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] active:scale-[0.98]",
             )}
           >
             <Icon className="h-[18px] w-[18px] shrink-0" />

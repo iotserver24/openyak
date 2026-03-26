@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronRight, FileText, FolderOpen } from "lucide-react";
 import { useWorkspaceStore, type WorkspaceFile } from "@/stores/workspace-store";
 import { useArtifactStore } from "@/stores/artifact-store";
@@ -30,7 +31,7 @@ function FileItem({ file }: { file: WorkspaceFile }) {
 
   return (
     <button
-      className="w-full flex items-center gap-2.5 px-4 py-1.5 text-left hover:bg-[var(--surface-tertiary)]/50 transition-colors"
+      className="w-full flex items-center gap-2.5 px-4 py-1.5 text-left transition-colors"
       onClick={handleClick}
     >
       <FileText className="h-4 w-4 shrink-0 text-[var(--text-tertiary)]" />
@@ -94,7 +95,7 @@ export function FilesCard() {
   return (
     <div className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-secondary)] overflow-hidden">
       <button
-        className="flex items-center justify-between w-full px-4 py-3 text-left hover:bg-[var(--surface-tertiary)]/50 transition-colors"
+        className="flex items-center justify-between w-full px-4 py-3 text-left transition-colors"
         onClick={() => toggleSection("files")}
       >
         <div className="flex items-center gap-2">
@@ -112,24 +113,34 @@ export function FilesCard() {
           />
         </div>
       </button>
-      {!collapsed && (
-        <div className="pb-1">
-          {workspaceFiles.length > 0 ? (
-            <div className="space-y-0.5">
-              {workspaceFiles.map((file) => (
-                <FileItem key={file.path} file={file} />
-              ))}
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="overflow-hidden"
+          >
+            <div className="pb-1">
+              {workspaceFiles.length > 0 ? (
+                <div className="space-y-0.5">
+                  {workspaceFiles.map((file) => (
+                    <FileItem key={file.path} file={file} />
+                  ))}
+                </div>
+              ) : (
+                <p className="px-4 py-2 text-[12px] text-[var(--text-quaternary)]">
+                  No files yet
+                </p>
+              )}
+              <div className="mt-2">
+                <Scratchpad />
+              </div>
             </div>
-          ) : (
-            <p className="px-4 py-2 text-[12px] text-[var(--text-quaternary)]">
-              No files yet
-            </p>
-          )}
-          <div className="mt-2">
-            <Scratchpad />
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

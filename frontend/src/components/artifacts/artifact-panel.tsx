@@ -90,11 +90,11 @@ export function ArtifactPanel() {
     return (
       <motion.aside
         className="fixed inset-y-0 right-0 z-[35] flex flex-col bg-[var(--surface-primary)] border-l border-[var(--border-default)] overflow-hidden"
-        style={IS_DESKTOP ? { top: TITLE_BAR_HEIGHT } : undefined}
-        initial={{ width: 0, opacity: 0 }}
-        animate={{ width: panelWidth, opacity: 1 }}
-        exit={{ width: 0, opacity: 0 }}
-        transition={{ type: "tween", duration: 0.2, ease: "easeOut" }}
+        style={{ width: panelWidth, ...(IS_DESKTOP ? { top: TITLE_BAR_HEIGHT } : {}) }}
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
       >
         <ResizeHandle />
         <ArtifactPanelHeader />

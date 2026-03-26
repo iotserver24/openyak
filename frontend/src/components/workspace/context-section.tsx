@@ -1,5 +1,6 @@
 "use client";
 
+import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Plug, Zap } from "lucide-react";
 import { useConnectors } from "@/hooks/use-connectors";
 import { useSkills } from "@/hooks/use-plugins";
@@ -87,7 +88,7 @@ export function ContextCard() {
   return (
     <div className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-secondary)] overflow-hidden">
       <button
-        className="flex items-center justify-between w-full px-4 py-3 text-left hover:bg-[var(--surface-tertiary)]/50 transition-colors"
+        className="flex items-center justify-between w-full px-4 py-3 text-left transition-colors"
         onClick={() => toggleSection("context")}
       >
         <span className="text-sm font-medium text-[var(--text-primary)]">
@@ -100,12 +101,22 @@ export function ContextCard() {
           )}
         />
       </button>
-      {!collapsed && (
-        <div className="pb-3">
-          <ConnectorsBlock />
-          <SkillsSummary />
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="overflow-hidden"
+          >
+            <div className="pb-3">
+              <ConnectorsBlock />
+              <SkillsSummary />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

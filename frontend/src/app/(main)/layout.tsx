@@ -274,7 +274,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           marginLeft,
           marginRight
         }}
-        transition={{ type: "tween", duration: 0.2, ease: "easeOut" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
       >
         <ConnectionStatus />
         {children}
