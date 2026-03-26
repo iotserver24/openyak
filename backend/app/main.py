@@ -14,6 +14,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import router as health_router
+from app.api.openai_compat import router as openai_compat_router
 from app.api.router import api_router
 from app.auth.middleware import RemoteAuthMiddleware
 from app.config import Settings
@@ -325,6 +326,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await task_scheduler.start()
     app.state.task_scheduler = task_scheduler
 
+    # OpenClaw runtime manager (always created — manages binary + process)
+    from app.openclaw.manager import OpenClawManager
+
+    openclaw_manager = OpenClawManager(data_dir=data_dir)
+    app.state.openclaw_manager = openclaw_manager
+
+
     yield
 
     # --- Shutdown ---
@@ -347,6 +355,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 if pending:
                     logger.warning("Shutdown: force-cancelled %d lingering task(s)", len(pending))
                     await asyncio.gather(*pending, return_exceptions=True)
+
+    # Stop OpenClaw runtime
+    openclaw_mgr = getattr(app.state, "openclaw_manager", None)
+    if openclaw_mgr and openclaw_mgr.is_running:
+        await openclaw_mgr.stop()
 
     # Stop remote tunnel
     tunnel_mgr = getattr(app.state, "tunnel_manager", None)
@@ -495,6 +508,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Mount routers
     app.include_router(health_router)
     app.include_router(api_router, prefix="/api")
+    app.include_router(openai_compat_router, tags=["openai-compat"])
 
     # Serve frontend static files for remote access (phone browser).
     # In desktop mode, Tauri serves the frontend — this is only needed

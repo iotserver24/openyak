@@ -383,7 +383,7 @@ class OpenAISubscriptionProvider(BaseProvider):
                 wham_input.append({
                     "type": "function_call_output",
                     "call_id": msg.get("tool_call_id", ""),
-                    "output": content if isinstance(content, str) else json.dumps(content),
+                    "output": self._translate_content(content),
                 })
 
         body["input"] = wham_input

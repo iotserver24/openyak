@@ -32,5 +32,12 @@
   "custom": "自定义",
   "requiredConnectors": "依赖连接器",
   "localSetup": "需要本地配置",
-  "remote": "云端"
+  "remote": "云端",
+  "channelsTab": "渠道",
+  "noChannels": "暂无已连接渠道",
+  "bridgeConnected": "网关已连接",
+  "bridgeDisconnected": "网关未连接",
+  "bridgeConnecting": "连接中...",
+  "connectBridge": "连接",
+  "disconnectBridge": "断开"
 }

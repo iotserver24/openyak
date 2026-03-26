@@ -32,5 +32,12 @@
   "custom": "Custom",
   "requiredConnectors": "Required connectors",
   "localSetup": "Requires local setup",
-  "remote": "Cloud"
+  "remote": "Cloud",
+  "channelsTab": "Channels",
+  "noChannels": "No channels connected",
+  "bridgeConnected": "Bridge connected",
+  "bridgeDisconnected": "Bridge not connected",
+  "bridgeConnecting": "Connecting...",
+  "connectBridge": "Connect",
+  "disconnectBridge": "Disconnect"
 }

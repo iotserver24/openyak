@@ -54,6 +54,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="OpenYak backend server")
     parser.add_argument("--port", type=int, default=8000, help="Port to listen on")
     parser.add_argument("--data-dir", type=str, default=None, help="Data directory (for desktop mode)")
+    parser.add_argument("--resource-dir", type=str, default=None, help="Resource directory (bundled assets from Tauri)")
     args = parser.parse_args()
 
     # If a data directory is specified, change to it so that SQLite DB,
@@ -61,6 +62,10 @@ def main() -> None:
     if args.data_dir:
         os.makedirs(args.data_dir, exist_ok=True)
         os.chdir(args.data_dir)
+
+    # Store resource dir as env var so the app can find bundled assets (e.g. Node.js)
+    if args.resource_dir:
+        os.environ["OPENYAK_RESOURCE_DIR"] = args.resource_dir
 
     import uvicorn
     from app.main import create_app

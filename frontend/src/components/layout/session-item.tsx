@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { useTranslation } from 'react-i18next';
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Trash2, Pencil, FileDown, FileText, Pin, PinOff } from "lucide-react";
+import { Trash2, Pencil, FileDown, FileText, FolderOpen, Pin, PinOff, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { API, queryKeys } from "@/lib/constants";
@@ -179,6 +179,18 @@ export const SessionItem = memo(function SessionItem({
                     {title}
                   </span>
                 </p>
+                {session.slug && getChannelBadge(session.slug) && !snippet && (
+                  <p className="truncate pr-2 text-[11px] mt-0.5 flex items-center gap-1">
+                    <MessageCircle className={cn("inline h-3 w-3 shrink-0", getChannelBadge(session.slug)!.color)} />
+                    <span className="text-[var(--text-tertiary)]">{getChannelBadge(session.slug)!.label}</span>
+                  </p>
+                )}
+                {session.directory && session.directory !== "." && !snippet && !session.slug && (
+                  <p className="truncate pr-2 text-[11px] text-[var(--text-tertiary)] mt-0.5 flex items-center gap-1">
+                    <FolderOpen className="inline h-3 w-3 shrink-0" />
+                    {session.directory.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop()}
+                  </p>
+                )}
                 {snippet && (
                   <p className="truncate pr-2 text-[11px] text-[var(--text-tertiary)] mt-0.5">
                     …{snippet}…
@@ -221,3 +233,20 @@ export const SessionItem = memo(function SessionItem({
     </ContextMenu>
   );
 });
+
+/** Map session slug prefix to a channel badge. */
+function getChannelBadge(slug: string): { label: string; color: string } | null {
+  if (!slug) return null;
+  const prefix = slug.split(":")[0];
+  switch (prefix) {
+    case "whatsapp": return { label: "WhatsApp", color: "text-emerald-500" };
+    case "discord":  return { label: "Discord",  color: "text-indigo-400" };
+    case "telegram": return { label: "Telegram", color: "text-sky-400" };
+    case "feishu":   return { label: "Feishu",   color: "text-blue-500" };
+    case "slack":    return { label: "Slack",    color: "text-purple-400" };
+    case "wechat":   return { label: "WeChat",   color: "text-green-500" };
+    case "signal":   return { label: "Signal",   color: "text-blue-400" };
+    case "line":     return { label: "LINE",     color: "text-green-400" };
+    default: return slug.includes(":") ? { label: prefix, color: "text-[var(--text-tertiary)]" } : null;
+  }
+}

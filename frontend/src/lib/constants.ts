@@ -219,6 +219,17 @@ export const API = {
     TEMPLATES: "/api/automations/templates",
     FROM_TEMPLATE: "/api/automations/from-template",
   },
+  CHANNELS: {
+    LIST: "/api/channels",
+    ADD: "/api/channels/add",
+    LOGIN: "/api/channels/login",
+    REMOVE: "/api/channels/remove",
+    OPENCLAW_STATUS: "/api/channels/openclaw/status",
+    OPENCLAW_SETUP: "/api/channels/openclaw/setup",
+    OPENCLAW_START: "/api/channels/openclaw/start",
+    OPENCLAW_STOP: "/api/channels/openclaw/stop",
+    OPENCLAW_UNINSTALL: "/api/channels/openclaw/uninstall",
+  },
   HEALTH: "/health",
   REMOTE: {
     ENABLE: "/api/remote/enable",
@@ -254,6 +265,8 @@ export const queryKeys = {
   openaiSubscription: ["openaiSubscription"] as const,
   ollamaStatus: ["ollamaStatus"] as const,
   connectors: ["connectors"] as const,
+  channels: ["channels"] as const,
+  openclawStatus: ["openclawStatus"] as const,
   plugins: {
     all: ["plugins"] as const,
     detail: (name: string) => ["plugins", name] as const,

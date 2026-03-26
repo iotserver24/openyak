@@ -22,6 +22,7 @@ import { api } from "@/lib/api";
 import { API } from "@/lib/constants";
 import { useSettingsStore } from "@/stores/settings-store";
 import type { ModelInfo } from "@/types/model";
+import { useChannels, useOpenClawStatus } from "@/hooks/use-channels";
 
 export default function MobileSettingsPage() {
   const router = useRouter();
@@ -359,6 +360,9 @@ export default function MobileSettingsPage() {
           </div>
         )}
 
+        {/* Channels */}
+        <ChannelsStatusCard />
+
         {/* Instructions */}
         <div className="rounded-2xl bg-[var(--surface-secondary)] border border-[var(--border-default)] p-4 space-y-2.5">
           <p className="text-[13px] font-medium">How to connect</p>
@@ -369,6 +373,46 @@ export default function MobileSettingsPage() {
           </ol>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Compact channels status card for mobile settings. */
+function ChannelsStatusCard() {
+  const { data: clawStatus } = useOpenClawStatus();
+  const { data: channels } = useChannels();
+
+  const running = clawStatus?.running ?? false;
+  const channelEntries = Object.entries(channels?.channels ?? {});
+
+  if (!running && channelEntries.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl bg-[var(--surface-secondary)] border border-[var(--border-default)] p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] font-medium">Channels</p>
+        <div className="flex items-center gap-1.5">
+          <span className={`h-2 w-2 rounded-full ${running ? "bg-emerald-500" : "bg-[var(--text-tertiary)]"}`} />
+          <span className="text-[11px] text-[var(--text-tertiary)]">
+            {running ? "Running" : "Stopped"}
+          </span>
+        </div>
+      </div>
+      {channelEntries.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {channelEntries.map(([id, ch]) => (
+            <span
+              key={id}
+              className="inline-flex items-center gap-1.5 text-[11px] rounded-full border border-[var(--border-default)] px-2.5 py-1"
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${
+                ch.status === "connected" ? "bg-emerald-500" : "bg-[var(--text-tertiary)]"
+              }`} />
+              {ch.name}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

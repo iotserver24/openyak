@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     fts_enabled: bool = True  # built-in FTS5, enabled by default (zero external deps)
     fts_auto_index: bool = True  # auto-index workspace on first access
 
+    # --- OpenClaw Bridge (Messaging Channels) ---
+    openclaw_enabled: bool = False  # OPENYAK_OPENCLAW_ENABLED
+    openclaw_url: str = "ws://127.0.0.1:18789"  # OPENYAK_OPENCLAW_URL
+    openclaw_token: str = ""  # OPENYAK_OPENCLAW_TOKEN
+
     # --- Remote Access ---
     remote_access_enabled: bool = False
     remote_token_path: str = "data/remote_token.json"

@@ -845,3 +845,4 @@ function PluginDetailPanel({ name }: { name: string }) {
     </div>
   );
 }
+

@@ -214,6 +214,8 @@ impl BackendState {
                     &port.to_string(),
                     "--data-dir",
                     &data_dir.to_string_lossy(),
+                    "--resource-dir",
+                    &resource_dir.to_string_lossy(),
                 ])
                 .env("PYTHONUNBUFFERED", "1")
                 .stdout(Stdio::piped())
@@ -640,12 +642,30 @@ fn validate_backend_resources(
         }
     }
 
+    // Node.js runtime (optional — used by OpenClaw channels)
+    let nodejs_dir = backend_dir.parent().unwrap_or(backend_dir).join("nodejs");
+    let node_binary = if cfg!(target_os = "windows") {
+        nodejs_dir.join("node.exe")
+    } else {
+        nodejs_dir.join("bin").join("node")
+    };
+    if nodejs_dir.exists() && !node_binary.exists() {
+        write_desktop_log(
+            desktop_log_path,
+            &format!(
+                "WARNING: nodejs directory exists but node binary missing: {}",
+                node_binary.display()
+            ),
+        );
+    }
+
     write_desktop_log(
         desktop_log_path,
         &format!(
-            "Validated packaged backend resources | backend_dir={} | backend_path={}",
+            "Validated packaged backend resources | backend_dir={} | backend_path={} | nodejs={}",
             backend_dir.display(),
-            backend_path.display()
+            backend_path.display(),
+            node_binary.exists()
         ),
     );
     Ok(())
