@@ -104,7 +104,7 @@ class ModelsDevService:
                     "vision": "image" in (modalities.get("input") or []),
                     "reasoning": m.get("reasoning", False),
                     "json_output": m.get("structured_output", False),
-                    "max_context": limit.get("context", 4096),
+                    "max_context": limit.get("context", 128_000),
                     "max_output": limit.get("output"),
                     "prompt_caching": "cache_read" in cost,
                 },

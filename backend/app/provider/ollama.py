@@ -7,6 +7,7 @@ Extends OpenAICompatProvider to leverage Ollama's OpenAI-compatible
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Any
@@ -24,7 +25,12 @@ _REASONING_PATTERNS = re.compile(r"(deepseek-r1|qwq|reasoner)", re.IGNORECASE)
 _CODE_PATTERNS = re.compile(r"(coder|codellama|starcoder|deepseek-coder|code)", re.IGNORECASE)
 
 
-def _infer_capabilities(name: str, details: dict[str, Any] | None) -> ModelCapabilities:
+def _infer_capabilities(
+    name: str,
+    details: dict[str, Any] | None,
+    *,
+    context_length: int | None = None,
+) -> ModelCapabilities:
     """Best-effort capability inference from model name and Ollama metadata."""
     families = set()
     if details:
@@ -38,11 +44,9 @@ def _infer_capabilities(name: str, details: dict[str, Any] | None) -> ModelCapab
     # Default to True — the runtime will gracefully degrade if unsupported.
     has_function_calling = True
 
-    # Context size: prefer Ollama metadata, fall back to a safe default.
-    param_size = details.get("parameter_size", "") if details else ""
-    # Rough heuristic: larger models tend to have larger context windows,
-    # but Ollama doesn't expose this directly — use a conservative default.
-    max_context = 8192
+    # Context size: use the real value from /api/show when available,
+    # otherwise fall back to a conservative default.
+    max_context = context_length or _DEFAULT_CONTEXT
 
     return ModelCapabilities(
         function_calling=has_function_calling,
@@ -51,6 +55,36 @@ def _infer_capabilities(name: str, details: dict[str, Any] | None) -> ModelCapab
         json_output=True,  # Ollama supports JSON mode via format param
         max_context=max_context,
     )
+
+
+_DEFAULT_CONTEXT = 8192
+
+
+async def _fetch_context_length(
+    client: httpx.AsyncClient,
+    base_url: str,
+    model_name: str,
+) -> int | None:
+    """Query ``/api/show`` for the model's real context window.
+
+    Returns the ``<arch>.context_length`` value from ``model_info``,
+    or *None* if unavailable.
+    """
+    try:
+        resp = await client.post(
+            f"{base_url}/api/show",
+            json={"name": model_name},
+            timeout=10.0,
+        )
+        resp.raise_for_status()
+        model_info: dict[str, Any] = resp.json().get("model_info", {})
+        # Keys are like "llama.context_length", "qwen2.context_length", etc.
+        for key, value in model_info.items():
+            if key.endswith(".context_length") and isinstance(value, int):
+                return value
+    except Exception:
+        logger.debug("Ollama: failed to fetch context_length for %s", model_name)
+    return None
 
 
 class OllamaProvider(OpenAICompatProvider):
@@ -78,7 +112,11 @@ class OllamaProvider(OpenAICompatProvider):
     # -- Model discovery -------------------------------------------------------
 
     async def list_models(self) -> list[ModelInfo]:
-        """Fetch locally-available models from ``/api/tags``."""
+        """Fetch locally-available models from ``/api/tags``.
+
+        For each model, queries ``/api/show`` in parallel to retrieve the
+        real context window size (``<arch>.context_length``).
+        """
         if self._models_cache is not None:
             return self._models_cache
 
@@ -87,11 +125,19 @@ class OllamaProvider(OpenAICompatProvider):
             resp.raise_for_status()
             data = resp.json()
 
+        entries = [e for e in data.get("models", []) if e.get("name") or e.get("model")]
+
+        # Fetch real context lengths in parallel via /api/show
+        names = [e.get("name") or e.get("model", "") for e in entries]
+        async with httpx.AsyncClient() as client:
+            ctx_tasks = [
+                _fetch_context_length(client, self._base_url, n) for n in names
+            ]
+            ctx_lengths = await asyncio.gather(*ctx_tasks)
+
         models: list[ModelInfo] = []
-        for entry in data.get("models", []):
+        for entry, ctx_len in zip(entries, ctx_lengths):
             name: str = entry.get("name", entry.get("model", ""))
-            if not name:
-                continue
 
             details: dict[str, Any] | None = entry.get("details")
             param_size = ""
@@ -112,7 +158,7 @@ class OllamaProvider(OpenAICompatProvider):
                     id=f"ollama/{name}",
                     name=display_name,
                     provider_id=self.id,
-                    capabilities=_infer_capabilities(name, details),
+                    capabilities=_infer_capabilities(name, details, context_length=ctx_len),
                     pricing=ModelPricing(prompt=0.0, completion=0.0),
                     metadata={
                         "size": entry.get("size", 0),

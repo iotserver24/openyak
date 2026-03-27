@@ -24,6 +24,7 @@ def build_system_prompt(
     skill_names: list[str] | None = None,
     workspace: str | None = None,
     fts_status: dict | None = None,
+    memory_section: str | None = None,
 ) -> str:
     """Build the complete system prompt for an LLM call."""
     parts = []
@@ -31,6 +32,10 @@ def build_system_prompt(
     # Agent's base prompt
     if agent.system_prompt:
         parts.append(agent.system_prompt)
+
+    # Long-term memory (cross-session user context and facts)
+    if memory_section:
+        parts.append(memory_section)
 
     # Environment info
     env_info = _environment_section(directory, workspace=workspace, fts_status=fts_status)

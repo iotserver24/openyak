@@ -35,13 +35,14 @@ app/
 │   ├── permission.py    #   4-layer permission engine (global → agent → user → session)
 │   └── prompts/         #   System prompt templates per agent
 │
-├── tool/                # Tool system (19+ built-in tools)
+├── tool/                # Tool system (20+ built-in tools)
 │   ├── base.py          #   ToolDefinition ABC + ToolResult
 │   ├── context.py       #   ToolContext (permission checks, abort, metadata)
 │   ├── registry.py      #   ToolRegistry (per-agent permission filtering)
 │   ├── truncation.py    #   Output truncation (~30K chars)
 │   └── builtin/         #   read, write, edit, bash, glob, grep, task, question, todo,
-│                        #   web_fetch, web_search, code_execute, artifact, plan, skill, ...
+│                        #   web_fetch, web_search, code_execute, artifact, plan, skill,
+│                        #   memory, apply_patch, search, submit_plan, ...
 │
 ├── session/             # Core execution loop
 │   ├── processor.py     #   THE CORE — full agent loop (multi-step tool calling, doom loop
@@ -53,11 +54,19 @@ app/
 │   ├── retry.py         #   Exponential backoff retry
 │   └── title.py         #   Auto-generate session titles
 │
-├── provider/            # LLM providers
+├── provider/            # LLM providers (21 BYOK + Ollama + ChatGPT subscription)
 │   ├── base.py          #   BaseProvider ABC
 │   ├── openai_compat.py #   OpenAI-compatible base class
 │   ├── openrouter.py    #   OpenRouter (primary provider, reasoning model support)
 │   ├── ollama.py        #   Ollama local LLM (extends OpenAI-compat)
+│   ├── anthropic_provider.py # Native Anthropic SDK provider
+│   ├── gemini_provider.py #  Native Google Gemini SDK provider
+│   ├── generic_openai.py #   Generic OpenAI-compatible provider (BYOK)
+│   ├── catalog.py       #   Provider catalog (21 BYOK provider definitions)
+│   ├── factory.py       #   Provider factory (creates providers from catalog)
+│   ├── openai_oauth.py  #   ChatGPT subscription OAuth
+│   ├── openai_subscription.py # ChatGPT subscription provider
+│   ├── proxy_auth.py    #   OpenYak Cloud proxy auth
 │   ├── registry.py      #   ProviderRegistry
 │   └── tool_calling/    #   Tool calling adapters (native FC detection + prompt-based fallback)
 │
@@ -77,12 +86,27 @@ app/
 │
 ├── schemas/             # Pydantic v2 request/response models
 ├── storage/             # Database engine + generic CRUD
-├── api/                 # FastAPI routes (17 modules)
+├── api/                 # FastAPI routes (26 modules)
 ├── connector/           # MCP connector management
+├── mcp/                 # MCP integration
+│   ├── client.py        #   MCP client connections (stdio, SSE, HTTP)
+│   ├── manager.py       #   MCP server lifecycle management
+│   ├── oauth.py         #   OAuth flow for MCP servers
+│   ├── token_store.py   #   Token persistence
+│   └── tool_wrapper.py  #   Wrap MCP tools as agent tools
+├── openclaw/            # OpenClaw IM bridge
+│   └── manager.py       #   Binary lifecycle + WebSocket to OpenClaw gateway
+├── memory/              # Long-term memory system
+│   ├── config.py        #   Memory configuration
+│   ├── models.py        #   Fact & context ORM models
+│   ├── storage.py       #   Memory CRUD operations
+│   ├── queue.py         #   Post-conversation extraction queue
+│   ├── injection.py     #   System prompt memory injection
+│   └── updater.py       #   Fact extraction & update logic
 ├── skill/               # Skill system (bundled + project-scoped)
 ├── plugin/              # Plugin system (load/enable/disable)
 ├── fts/                 # Full-text search (SQLite FTS5)
-├── scheduler/           # Background task scheduler (cron)
+├── scheduler/           # Background task scheduler (cron + automations)
 ├── auth/                # Authentication & remote tunnel
 └── utils/               # ULID, token counting, diff
 ```
@@ -121,6 +145,7 @@ app/
 | `skill` | Execute bundled/plugin skills |
 | `web_fetch` | Fetch & parse web pages |
 | `web_search` | Web search (daily quota) |
+| `memory` | Manage long-term memory (search/save/update/forget facts and context) |
 | `invalid` | Fallback for malformed tool calls |
 
 ## API Endpoints
@@ -155,6 +180,33 @@ app/
 | POST | `/api/ollama/models/pull` | Download a model (SSE progress) |
 | DELETE | `/api/ollama/models/{name}` | Delete a local model |
 | DELETE | `/api/ollama/uninstall` | Remove Ollama binary + optional models |
+| | **Channels (OpenClaw)** | |
+| GET | `/api/channels/openclaw/status` | OpenClaw runtime status |
+| POST | `/api/channels/openclaw/setup` | Install OpenClaw binary (SSE progress) |
+| POST | `/api/channels/login` | Start channel login (e.g., WhatsApp QR) |
+| POST | `/api/channels/add` | Add channel with token/credentials |
+| POST | `/api/channels/remove` | Remove a channel |
+| GET | `/api/channels/list` | List connected channels |
+| | **Memory** | |
+| GET | `/api/memory` | Get all stored memory (contexts + facts) |
+| POST | `/api/memory/facts` | Add a new fact |
+| DELETE | `/api/memory/facts` | Remove facts by ID |
+| PUT | `/api/memory/context` | Update a context section |
+| GET/PUT | `/api/memory/config` | Get/update memory configuration |
+| | **Automations** | |
+| GET | `/api/automations/templates` | List built-in automation templates |
+| POST | `/api/automations/from-template` | Create automation from template |
+| GET/POST | `/api/automations` | List / create automations |
+| GET/PATCH/DELETE | `/api/automations/{id}` | View / update / delete automation |
+| POST | `/api/automations/{id}/trigger` | Manually trigger an automation |
+| | **Connectors (MCP)** | |
+| GET | `/api/connectors` | List all connectors with status |
+| GET | `/api/connectors/{id}` | Get connector detail |
+| POST | `/api/connectors/{id}/reconnect` | Reconnect a connector |
+| | **Plugins** | |
+| GET | `/api/plugins` | List available plugins |
+| POST | `/api/plugins/{id}/enable` | Enable a plugin |
+| POST | `/api/plugins/{id}/disable` | Disable a plugin |
 
 ## Core Agent Loop
 
@@ -193,6 +245,38 @@ Auto-generate title on first turn → publish done event
 
 Each tool can be set to `allow`, `deny`, or `ask` (prompts user in UI).
 
+## LLM Providers
+
+21 BYOK providers + Ollama local + ChatGPT subscription:
+
+| Provider | Type | Notes |
+|----------|------|-------|
+| OpenRouter | Aggregator | Primary provider, 100+ models, reasoning token support |
+| Ollama | Local | Managed binary lifecycle, auto-download, pre-warming |
+| ChatGPT Subscription | OAuth | Connect existing ChatGPT Plus/Team subscription |
+| OpenAI | BYOK | Direct API key |
+| Anthropic | BYOK (native SDK) | Claude models via Anthropic SDK |
+| Google Gemini | BYOK (native SDK) | Gemini models via Google GenAI SDK |
+| Groq | BYOK | Fast inference |
+| DeepSeek | BYOK | DeepSeek V3/R1 |
+| Mistral | BYOK | Mistral/Mixtral models |
+| xAI | BYOK | Grok models |
+| Together AI | BYOK | Open-source model hosting |
+| DeepInfra | BYOK | |
+| Cerebras | BYOK | Ultra-fast inference |
+| Cohere | BYOK | Command R+ |
+| Perplexity | BYOK | Search-augmented models |
+| Fireworks AI | BYOK | |
+| Azure OpenAI | BYOK | Enterprise Azure deployment |
+| Qwen (通义千问) | BYOK | Alibaba DashScope |
+| Kimi (月之暗面) | BYOK | Moonshot |
+| MiniMax | BYOK | |
+| ZhipuAI (智谱) | BYOK | GLM models |
+| SiliconFlow (硅基流动) | BYOK | |
+| Xiaomi MiMo | BYOK | |
+
+All BYOK provider keys follow the pattern `OPENYAK_{PROVIDER}_API_KEY`.
+
 ## Usage Examples
 
 ```bash
@@ -222,6 +306,9 @@ curl http://localhost:8000/api/agents
 - **Python 3.12+** / FastAPI / Pydantic v2
 - **SQLAlchemy** (async) + SQLite WAL
 - **OpenAI SDK** → OpenRouter (reasoning token support)
+- **Anthropic SDK** → native Anthropic provider
+- **Google GenAI SDK** → native Gemini provider
+- **MCP SDK** → Model Context Protocol client (optional)
 - **SSE** resumable streaming
 - **ULID** primary keys
 - **tiktoken** token counting
@@ -243,6 +330,12 @@ curl http://localhost:8000/api/agents
 | `OPENYAK_OLLAMA_BASE_URL` | Ollama server URL (auto-set by setup) | `` |
 | `OPENYAK_OLLAMA_AUTO_START` | Auto-start managed Ollama on launch | `true` |
 | `OPENYAK_OLLAMA_LAST_MODEL` | Last-used model for startup pre-warming | `` |
+| `OPENYAK_OPENCLAW_ENABLED` | Enable OpenClaw IM bridge | `false` |
+| `OPENYAK_OPENCLAW_URL` | OpenClaw WebSocket URL | `ws://127.0.0.1:18789` |
+| `OPENYAK_PROXY_URL` | OpenYak Cloud proxy URL (billing mode) | `` |
+| `OPENYAK_PROXY_TOKEN` | JWT for proxy authentication | `` |
+| `OPENYAK_BRAVE_SEARCH_API_KEY` | Brave Search API key (enhanced web search) | `` |
+| `OPENYAK_REMOTE_ACCESS_ENABLED` | Enable remote tunnel access | `false` |
 
 ## Build & Deploy
 

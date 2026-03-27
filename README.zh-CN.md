@@ -25,21 +25,28 @@
 
 **团队运营** — 将 PDF、DOCX、CSV 中的笔记合并为结构化简报。自动提取行动项并分配负责人，追踪截止日期。
 
+**IM 集成** — 连接 8+ 消息平台 — WhatsApp、Discord、Telegram、Slack、飞书、Signal、iMessage — 通过 OpenClaw 桥接。让 AI 助手在一个地方接收和回复所有渠道的消息。
+
+**自动化任务** — 通过 cron 触发器调度定期任务。每日数据摘要、每周报告、自动文件清理 — 设置一次，交给 Yak 处理。
+
 **远程工作流** — 在桌面开始，用手机继续。一键安全隧道，扫描二维码即可从任何设备接续工作。
 
 ## 为什么选择 OpenYak
 
 - **100% 本地优先** — 数据存储在本地。无云端存储、无遥测追踪，每一次对话都只属于你。
 - **100+ AI 模型** — 通过 OpenRouter 接入最新模型 — Claude Opus 4.6 & Sonnet 4.6、DeepSeek V3.2、Gemini 3 Flash、GPT-4.1、MiniMax M2.5、Step 3.5 Flash、MiMo-V2-Pro 等。
+- **20+ BYOK 提供商** — 使用你自己的 API 密钥接入 OpenAI、Anthropic、Google、Groq、DeepSeek、Mistral、xAI 等，也支持国内提供商：通义千问、Kimi、MiniMax、智谱。
 - **ChatGPT 订阅直连** — 已经订阅了 ChatGPT？直接接入你的 ChatGPT 订阅，无需额外 API 费用。
-- **16+ 内置工具** — 文件读写编辑、Bash 执行、glob/grep 搜索、网络请求等。
+- **20+ 内置工具** — 文件读写编辑、Bash 执行、glob/grep 搜索、网络请求、长期记忆等。
 - **7 种 Agent 模式** — 构建、规划、探索等专用 Agent，支持多步骤工具调用和子 Agent 嵌套。
+- **长期记忆** — Yak 记住你的偏好、工作上下文和关键事实，跨对话持久保存。你的记忆，本地存储。
+- **MCP 连接器** — 通过 Model Context Protocol 集成外部工具和服务。连接任何 MCP 兼容服务器。
 - **免费起步** — 每周免费 100 万 Token。按 OpenRouter 原价计费，零加价。或使用你自己的 API 密钥。
 
 ## 开始使用
 
 1. **下载** [Windows 或 macOS 安装包](https://open-yak.com/download/)
-2. **连接模型** — 即刻使用免费模型，充值使用高级模型，或接入你自己的 OpenRouter API 密钥
+2. **连接模型** — 即刻使用免费模型，充值使用高级模型，接入 20+ 提供商的 API 密钥，或通过 Ollama 本地运行
 3. **开始工作** — 管理文件、分析数据、生成办公文档
 
 ## 开发者

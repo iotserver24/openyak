@@ -25,4 +25,5 @@ export interface SkillInfo {
   description: string;
   location: string;
   source: "bundled" | "plugin" | "project";
+  enabled: boolean;
 }

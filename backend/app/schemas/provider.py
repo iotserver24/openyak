@@ -14,7 +14,7 @@ class ModelCapabilities(BaseModel):
     vision: bool = False
     reasoning: bool = False
     json_output: bool = False
-    max_context: int = 4096
+    max_context: int = 128_000
     max_output: int | None = None
     prompt_caching: bool = False  # Whether model supports prompt caching
 

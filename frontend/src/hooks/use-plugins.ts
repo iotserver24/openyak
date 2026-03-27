@@ -26,7 +26,7 @@ export function usePluginDetail(name: string | null) {
 export function useSkills() {
   return useQuery({
     queryKey: queryKeys.skills,
-    queryFn: () => api.get<SkillInfo[]>(API.SKILLS),
+    queryFn: () => api.get<SkillInfo[]>(API.SKILLS.LIST),
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -41,6 +41,19 @@ export function usePluginToggle() {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.plugins.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.skills });
+    },
+  });
+}
+
+export function useSkillToggle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, enable }: { name: string; enable: boolean }) =>
+      api.post<{ success: boolean; skills: SkillInfo[] }>(
+        enable ? API.SKILLS.ENABLE(name) : API.SKILLS.DISABLE(name),
+      ),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.skills });
     },
   });

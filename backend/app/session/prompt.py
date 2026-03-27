@@ -107,9 +107,15 @@ class SessionPrompt:
         self.first_user_text: str = request.text
         self.session_permission_data: Any = None
 
+        # Middleware chain (composable cross-cutting concerns)
+        from app.session.middlewares.factory import build_middleware_chain
+
+        self.middleware_chain = build_middleware_chain(
+            get_todos_fn=lambda: self.current_todos,
+        )
+
         # Cross-step loop state
         self.step: int = 0
-        self.doom_history: list[str] = []
         self.total_cost: float = 0.0
         self.total_tokens_accumulated: dict[str, int] = {
             "input": 0,
@@ -250,7 +256,7 @@ class SessionPrompt:
         if skill_tool is not None and hasattr(skill_tool, "_skill_registry"):
             sr = skill_tool._skill_registry
             if sr is not None:
-                self.skill_names = sr.skill_names()
+                self.skill_names = sr.active_skill_names()
 
         self.workspace = (
             self.directory if self.directory and self.directory != "." else self.request.workspace
@@ -282,12 +288,22 @@ class SessionPrompt:
             except Exception as e:
                 logger.warning("FTS: setup failed for session %s: %s", self.job.session_id, e)
 
+        # --- Load long-term memory for system prompt ---
+        memory_section = None
+        try:
+            from app.memory.injection import build_memory_section
+
+            memory_section = await build_memory_section(self.session_factory)
+        except Exception:
+            logger.debug("Memory injection skipped", exc_info=True)
+
         self.system_prompt = build_system_prompt(
             self.agent,
             directory=self.directory,
             skill_names=self.skill_names if self.skill_names else None,
             workspace=self.workspace,
             fts_status=self.fts_status,
+            memory_section=memory_section,
         )
 
         # --- 5. Merge permission rulesets (global → agent → presets → session) ---
@@ -411,6 +427,20 @@ class SessionPrompt:
                 ),
             )
 
+            # Run middleware before_llm_call hook
+            from app.session.middleware import MiddlewareContext
+
+            mw_ctx = MiddlewareContext(
+                session_id=self.job.session_id,
+                step=self.step,
+                job=self.job,
+                model_id=self.model_id,
+                agent_name=self.agent.name if self.agent else None,
+            )
+            llm_messages = await self.middleware_chain.run_before_llm_call(
+                llm_messages, mw_ctx,
+            )
+
             # Create assistant message shell
             async with self.session_factory() as db:
                 async with db.begin():
@@ -431,6 +461,7 @@ class SessionPrompt:
                 session_prompt=self,
                 llm_messages=llm_messages,
                 assistant_msg_id=self.assistant_msg_id,
+                middleware_ctx=mw_ctx,
             )
             result = await processor.process()
 
@@ -451,6 +482,29 @@ class SessionPrompt:
 
             # Handle processor result
             if result == "compact":
+                # Extract memory BEFORE compaction so important info from
+                # messages about to be pruned/summarized is preserved in
+                # long-term memory.  Uses the session's current model_id.
+                try:
+                    from app.memory.queue import get_memory_queue
+
+                    _mq = get_memory_queue()
+                    if _mq is not None:
+                        async with self.session_factory() as db:
+                            async with db.begin():
+                                _pre_msgs = await get_message_history_for_llm(
+                                    db, self.job.session_id
+                                )
+                        _mq.add(
+                            self.job.session_id,
+                            _pre_msgs,
+                            model_id=self.model_id,
+                        )
+                except Exception:
+                    logger.debug(
+                        "Pre-compaction memory queue failed", exc_info=True
+                    )
+
                 await run_compaction(
                     self.job.session_id,
                     job=self.job,
@@ -459,6 +513,45 @@ class SessionPrompt:
                     agent_registry=self.agent_registry,
                     model_id=self.model_id,
                 )
+
+                # Todo context recovery: after compaction the LLM may have
+                # lost awareness of outstanding todos (the original todo tool
+                # call got truncated). Re-inject a reminder so it can continue.
+                incomplete = [
+                    t for t in self.current_todos
+                    if t.get("status") in ("pending", "in_progress")
+                ]
+                if incomplete:
+                    todo_summary = "\n".join(
+                        f"  - [{t.get('status', '?')}] {t.get('content', 'unnamed')}"
+                        for t in incomplete[:10]
+                    )
+                    logger.info(
+                        "Todo recovery after compaction: %d incomplete todo(s)",
+                        len(incomplete),
+                    )
+                    async with self.session_factory() as db:
+                        async with db.begin():
+                            recovery_msg = await _create_message(
+                                db,
+                                session_id=self.job.session_id,
+                                data={"role": "user", "agent": self.agent.name, "system": True},
+                            )
+                            await create_part(
+                                db,
+                                message_id=recovery_msg.id,
+                                session_id=self.job.session_id,
+                                data={
+                                    "type": "text",
+                                    "text": (
+                                        "[System: Context was compacted. Your active todo list:\n"
+                                        f"{todo_summary}\n"
+                                        "Continue working on these tasks. Call the todo tool to "
+                                        "update status as you complete each one.]"
+                                    ),
+                                },
+                            )
+
                 continue
 
             if result == "stop":
@@ -590,6 +683,24 @@ class SessionPrompt:
                     logger.warning(
                         "Failed to persist title for %s", self.job.session_id
                     )
+
+        # Queue conversation for async memory extraction
+        if not self.job.abort_event.is_set():
+            try:
+                from app.memory.queue import get_memory_queue
+                from app.session.manager import get_message_history_for_llm as _get_hist
+
+                queue = get_memory_queue()
+                if queue is None:
+                    logger.warning("Memory: queue not initialized, skipping extraction")
+                else:
+                    async with self.session_factory() as db:
+                        async with db.begin():
+                            _msgs = await _get_hist(db, self.job.session_id)
+                    queue.add(self.job.session_id, _msgs, model_id=self.model_id)
+                    logger.info("Memory: queued session %s for extraction (%d messages)", self.job.session_id, len(_msgs))
+            except Exception:
+                logger.warning("Memory queue submission failed", exc_info=True)
 
         # Publish DONE to unlock the frontend UI.
         self.job.publish(

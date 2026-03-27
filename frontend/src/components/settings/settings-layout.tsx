@@ -4,7 +4,7 @@ import { useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowLeft, Settings, Cpu, CreditCard, BarChart3 } from "lucide-react";
+import { ArrowLeft, Settings, Cpu, Timer, Plug, Wifi, CreditCard, BarChart3, Brain } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,10 @@ import { GeneralTab } from "@/components/settings/general-tab";
 import { ProvidersTab } from "@/components/settings/providers-tab";
 import { BillingTab } from "@/components/settings/billing-tab";
 import { UsageSkeleton } from "@/components/settings/usage-tab";
+import { MemoryTab } from "@/components/settings/memory-tab";
+import { AutomationsTabContent } from "@/app/(main)/automations/content";
+import { PluginsTabContent } from "@/app/(main)/plugins/content";
+import { RemoteTabContent } from "@/app/(main)/remote/content";
 
 const UsageTab = dynamic(
   () => import("@/components/settings/usage-tab").then((mod) => ({ default: mod.UsageTab })),
@@ -21,8 +25,12 @@ const UsageTab = dynamic(
 const SETTINGS_TABS = [
   { id: "general", icon: Settings, labelKey: "tabGeneral" },
   { id: "providers", icon: Cpu, labelKey: "tabProviders" },
+  { id: "automations", icon: Timer, labelKey: "tabAutomations" },
+  { id: "plugins", icon: Plug, labelKey: "tabPlugins" },
+  { id: "remote", icon: Wifi, labelKey: "tabRemote" },
   { id: "billing", icon: CreditCard, labelKey: "tabBilling" },
   { id: "usage", icon: BarChart3, labelKey: "tabUsage" },
+  { id: "memory", icon: Brain, labelKey: "tabMemory" },
 ] as const;
 
 type TabId = (typeof SETTINGS_TABS)[number]["id"];
@@ -101,8 +109,12 @@ export default function SettingsPageClient() {
           <div className="min-w-0">
             {activeTab === "general" && <GeneralTab />}
             {activeTab === "providers" && <ProvidersTab onNavigateTab={navigateTab} />}
+            {activeTab === "automations" && <AutomationsTabContent />}
+            {activeTab === "plugins" && <PluginsTabContent />}
+            {activeTab === "remote" && <RemoteTabContent />}
             {activeTab === "billing" && <BillingTab onNavigateTab={navigateTab} />}
             {activeTab === "usage" && <UsageTab />}
+            {activeTab === "memory" && <MemoryTab />}
           </div>
         </div>
       </div>

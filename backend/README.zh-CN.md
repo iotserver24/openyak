@@ -35,13 +35,14 @@ app/
 │   ├── permission.py    #   4 层权限引擎（全局 → agent → 用户 → 会话）
 │   └── prompts/         #   每个 agent 的 system prompt 模板
 │
-├── tool/                # 工具系统（19+ 个内置工具）
+├── tool/                # 工具系统（20+ 个内置工具）
 │   ├── base.py          #   ToolDefinition ABC + ToolResult
 │   ├── context.py       #   ToolContext（权限检查、abort、metadata）
 │   ├── registry.py      #   ToolRegistry（按 agent 权限过滤）
 │   ├── truncation.py    #   输出截断（~30K 字符）
 │   └── builtin/         #   read, write, edit, bash, glob, grep, task, question, todo,
-│                        #   web_fetch, web_search, code_execute, artifact, plan, skill, ...
+│                        #   web_fetch, web_search, code_execute, artifact, plan, skill,
+│                        #   memory, apply_patch, search, submit_plan, ...
 │
 ├── session/             # 核心执行循环
 │   ├── processor.py     #   THE CORE — 完整 agent loop（多步工具调用、doom loop 检测、
@@ -53,11 +54,19 @@ app/
 │   ├── retry.py         #   指数退避重试
 │   └── title.py         #   自动生成会话标题
 │
-├── provider/            # LLM 提供者
+├── provider/            # LLM 提供者（21 个 BYOK + Ollama + ChatGPT 订阅）
 │   ├── base.py          #   BaseProvider ABC
 │   ├── openai_compat.py #   OpenAI 兼容基类
 │   ├── openrouter.py    #   OpenRouter（主要提供者，支持 reasoning）
 │   ├── ollama.py        #   Ollama 本地大模型（继承 OpenAI 兼容基类）
+│   ├── anthropic_provider.py # 原生 Anthropic SDK 提供者
+│   ├── gemini_provider.py #  原生 Google Gemini SDK 提供者
+│   ├── generic_openai.py #   通用 OpenAI 兼容提供者（BYOK）
+│   ├── catalog.py       #   提供者目录（21 个 BYOK 提供者定义）
+│   ├── factory.py       #   提供者工厂（从目录创建提供者）
+│   ├── openai_oauth.py  #   ChatGPT 订阅 OAuth
+│   ├── openai_subscription.py # ChatGPT 订阅提供者
+│   ├── proxy_auth.py    #   OpenYak Cloud 代理认证
 │   ├── registry.py      #   ProviderRegistry
 │   └── tool_calling/    #   工具调用适配（原生 FC 检测 + prompt-based 回退）
 │
@@ -77,12 +86,27 @@ app/
 │
 ├── schemas/             # Pydantic v2 请求/响应模型
 ├── storage/             # 数据库引擎 + 通用 CRUD
-├── api/                 # FastAPI 路由（17 个模块）
+├── api/                 # FastAPI 路由（26 个模块）
 ├── connector/           # MCP 连接器管理
+├── mcp/                 # MCP 集成
+│   ├── client.py        #   MCP 客户端连接（stdio、SSE、HTTP）
+│   ├── manager.py       #   MCP 服务器生命周期管理
+│   ├── oauth.py         #   MCP 服务器 OAuth 流程
+│   ├── token_store.py   #   Token 持久化
+│   └── tool_wrapper.py  #   将 MCP 工具封装为 agent 工具
+├── openclaw/            # OpenClaw IM 桥接
+│   └── manager.py       #   二进制生命周期 + WebSocket 连接 OpenClaw 网关
+├── memory/              # 长期记忆系统
+│   ├── config.py        #   记忆配置
+│   ├── models.py        #   Fact & Context ORM 模型
+│   ├── storage.py       #   记忆 CRUD 操作
+│   ├── queue.py         #   对话后提取队列
+│   ├── injection.py     #   系统提示词记忆注入
+│   └── updater.py       #   Fact 提取 & 更新逻辑
 ├── skill/               # 技能系统（内置 + 项目级）
 ├── plugin/              # 插件系统（加载/启用/禁用）
 ├── fts/                 # 全文搜索（SQLite FTS5）
-├── scheduler/           # 后台任务调度器（cron）
+├── scheduler/           # 后台任务调度器（cron + 自动化任务）
 ├── auth/                # 认证 & 远程隧道
 └── utils/               # ULID、token 计数、diff
 ```
@@ -121,6 +145,7 @@ app/
 | `skill` | 执行内置/插件技能 |
 | `web_fetch` | 抓取并解析网页 |
 | `web_search` | 网页搜索（每日配额） |
+| `memory` | 管理长期记忆（搜索/保存/更新/遗忘事实和上下文） |
 | `invalid` | 格式错误工具调用的兜底处理 |
 
 ## API 端点
@@ -155,6 +180,33 @@ app/
 | POST | `/api/ollama/models/pull` | 下载模型（SSE 进度流） |
 | DELETE | `/api/ollama/models/{name}` | 删除本地模型 |
 | DELETE | `/api/ollama/uninstall` | 移除 Ollama 二进制 + 可选删除模型 |
+| | **频道（OpenClaw）** | |
+| GET | `/api/channels/openclaw/status` | OpenClaw 运行状态 |
+| POST | `/api/channels/openclaw/setup` | 安装 OpenClaw 二进制（SSE 进度流） |
+| POST | `/api/channels/login` | 开始频道登录（如 WhatsApp 二维码） |
+| POST | `/api/channels/add` | 添加频道（token/凭据） |
+| POST | `/api/channels/remove` | 移除频道 |
+| GET | `/api/channels/list` | 列出已连接频道 |
+| | **记忆** | |
+| GET | `/api/memory` | 获取所有记忆（上下文 + 事实） |
+| POST | `/api/memory/facts` | 添加新事实 |
+| DELETE | `/api/memory/facts` | 按 ID 移除事实 |
+| PUT | `/api/memory/context` | 更新上下文段落 |
+| GET/PUT | `/api/memory/config` | 获取/更新记忆配置 |
+| | **自动化任务** | |
+| GET | `/api/automations/templates` | 列出内置自动化模板 |
+| POST | `/api/automations/from-template` | 从模板创建自动化 |
+| GET/POST | `/api/automations` | 列表 / 创建自动化 |
+| GET/PATCH/DELETE | `/api/automations/{id}` | 查看 / 更新 / 删除自动化 |
+| POST | `/api/automations/{id}/trigger` | 手动触发自动化 |
+| | **连接器（MCP）** | |
+| GET | `/api/connectors` | 列出所有连接器及状态 |
+| GET | `/api/connectors/{id}` | 获取连接器详情 |
+| POST | `/api/connectors/{id}/reconnect` | 重连连接器 |
+| | **插件** | |
+| GET | `/api/plugins` | 列出可用插件 |
+| POST | `/api/plugins/{id}/enable` | 启用插件 |
+| POST | `/api/plugins/{id}/disable` | 禁用插件 |
 
 ## 核心 Agent Loop
 
@@ -189,6 +241,38 @@ app/
 
 每个工具可设置为 `allow`（允许）、`deny`（拒绝）或 `ask`（在 UI 中询问用户）。
 
+## LLM 提供者
+
+21 个 BYOK 提供者 + Ollama 本地 + ChatGPT 订阅：
+
+| 提供者 | 类型 | 说明 |
+|--------|------|------|
+| OpenRouter | 聚合器 | 主要提供者，100+ 模型，支持 reasoning token |
+| Ollama | 本地 | 托管二进制生命周期，自动下载，启动预热 |
+| ChatGPT 订阅 | OAuth | 接入现有 ChatGPT Plus/Team 订阅 |
+| OpenAI | BYOK | 直接 API 密钥 |
+| Anthropic | BYOK（原生 SDK） | 通过 Anthropic SDK 接入 Claude 模型 |
+| Google Gemini | BYOK（原生 SDK） | 通过 Google GenAI SDK 接入 Gemini 模型 |
+| Groq | BYOK | 快速推理 |
+| DeepSeek | BYOK | DeepSeek V3/R1 |
+| Mistral | BYOK | Mistral/Mixtral 模型 |
+| xAI | BYOK | Grok 模型 |
+| Together AI | BYOK | 开源模型托管 |
+| DeepInfra | BYOK | |
+| Cerebras | BYOK | 超快推理 |
+| Cohere | BYOK | Command R+ |
+| Perplexity | BYOK | 搜索增强模型 |
+| Fireworks AI | BYOK | |
+| Azure OpenAI | BYOK | 企业级 Azure 部署 |
+| 通义千问（Qwen） | BYOK | 阿里巴巴 DashScope |
+| Kimi（月之暗面） | BYOK | Moonshot |
+| MiniMax | BYOK | |
+| 智谱（ZhipuAI） | BYOK | GLM 模型 |
+| 硅基流动（SiliconFlow） | BYOK | |
+| Xiaomi MiMo | BYOK | |
+
+所有 BYOK 提供者密钥遵循 `OPENYAK_{PROVIDER}_API_KEY` 格式。
+
 ## 使用示例
 
 ```bash
@@ -218,6 +302,9 @@ curl http://localhost:8000/api/agents
 - **Python 3.12+** / FastAPI / Pydantic v2
 - **SQLAlchemy** (async) + SQLite WAL
 - **OpenAI SDK** → OpenRouter（支持 reasoning tokens）
+- **Anthropic SDK** → 原生 Anthropic 提供者
+- **Google GenAI SDK** → 原生 Gemini 提供者
+- **MCP SDK** → Model Context Protocol 客户端（可选）
 - **SSE** 可恢复流式传输
 - **ULID** 主键
 - **tiktoken** token 计数
@@ -239,6 +326,12 @@ curl http://localhost:8000/api/agents
 | `OPENYAK_OLLAMA_BASE_URL` | Ollama 服务地址（setup 自动设置） | `` |
 | `OPENYAK_OLLAMA_AUTO_START` | 启动时自动启动托管的 Ollama | `true` |
 | `OPENYAK_OLLAMA_LAST_MODEL` | 上次使用的模型（用于启动预热） | `` |
+| `OPENYAK_OPENCLAW_ENABLED` | 启用 OpenClaw IM 桥接 | `false` |
+| `OPENYAK_OPENCLAW_URL` | OpenClaw WebSocket 地址 | `ws://127.0.0.1:18789` |
+| `OPENYAK_PROXY_URL` | OpenYak Cloud 代理地址（计费模式） | `` |
+| `OPENYAK_PROXY_TOKEN` | 代理认证 JWT | `` |
+| `OPENYAK_BRAVE_SEARCH_API_KEY` | Brave Search API 密钥（增强网页搜索） | `` |
+| `OPENYAK_REMOTE_ACCESS_ENABLED` | 启用远程隧道访问 | `false` |
 
 ## 构建与部署
 

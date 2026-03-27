@@ -25,21 +25,28 @@
 
 **Team Operations** — Merge notes from PDFs, DOCX, and CSVs into structured briefings. Auto-extract action items, assign owners, and track deadlines.
 
+**IM Integration** — Connect 8+ messaging platforms — WhatsApp, Discord, Telegram, Slack, Feishu, Signal, iMessage — through OpenClaw. Let your AI assistant receive and reply to messages across all your channels from one place.
+
+**Automations** — Schedule recurring tasks with cron-based triggers. Daily data digests, weekly reports, automated file cleanup — set it once and let Yak handle it.
+
 **Remote Workflows** — Start on your desktop, continue on your phone. One-click secure tunnel with QR code access from any device.
 
 ## Why OpenYak
 
 - **100% Local-First** — Your data stays on your machine. No cloud storage, no telemetry. Every conversation is yours alone.
 - **100+ AI Models** — Access the latest models through OpenRouter — Claude Opus 4.6 & Sonnet 4.6, DeepSeek V3.2, Gemini 3 Flash, GPT-4.1, MiniMax M2.5, Step 3.5 Flash, MiMo-V2-Pro, and more.
+- **20+ BYOK Providers** — Bring your own API key for OpenAI, Anthropic, Google, Groq, DeepSeek, Mistral, xAI, and more — including Chinese providers like Qwen, Kimi, MiniMax, and ZhiPu.
 - **ChatGPT Subscription** — Already paying for ChatGPT? Connect your ChatGPT subscription directly — no extra API costs.
-- **16+ Built-in Tools** — File read/write/edit, bash execution, glob/grep search, web fetch, and more.
+- **20+ Built-in Tools** — File read/write/edit, bash execution, glob/grep search, web fetch, long-term memory, and more.
 - **7 Agent Modes** — Specialized agents for building, planning, exploring, and more — with multi-step tool calling and sub-agent nesting.
+- **Long-term Memory** — Yak remembers your preferences, work context, and key facts across conversations. Your memory, stored locally.
+- **MCP Connectors** — Integrate external tools and services via Model Context Protocol. Connect to any MCP-compatible server.
 - **Free to Start** — 1M tokens/week on free models. Pay-as-you-go at OpenRouter prices with zero markup. Or bring your own API key.
 
 ## Get Started
 
 1. **Download** the installer for [Windows or macOS](https://open-yak.com/download/)
-2. **Connect a model** — use free models instantly, top up for premium models, or bring your own OpenRouter API key
+2. **Connect a model** — use free models instantly, top up for premium models, bring your own API key from 20+ providers, or run locally via Ollama
 3. **Start working** — manage files, analyze local data, and generate office-ready outputs
 
 ## For Developers

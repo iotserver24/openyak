@@ -178,7 +178,11 @@ export const API = {
   AGENTS: "/api/agents",
   MODELS: "/api/models",
   TOOLS: "/api/tools",
-  SKILLS: "/api/skills",
+  SKILLS: {
+    LIST: "/api/skills",
+    ENABLE: (name: string) => `/api/skills/${name}/enable` as const,
+    DISABLE: (name: string) => `/api/skills/${name}/disable` as const,
+  },
   MCP: {
     STATUS: "/api/mcp/status",
     RECONNECT: (name: string) => `/api/mcp/${name}/reconnect` as const,
@@ -230,6 +234,12 @@ export const API = {
     OPENCLAW_STOP: "/api/channels/openclaw/stop",
     OPENCLAW_UNINSTALL: "/api/channels/openclaw/uninstall",
   },
+  MEMORY: {
+    BASE: "/api/memory",
+    FACTS: "/api/memory/facts",
+    CONTEXTS: "/api/memory/contexts",
+    CONFIG: "/api/memory/config",
+  },
   HEALTH: "/health",
   REMOTE: {
     ENABLE: "/api/remote/enable",
@@ -277,6 +287,7 @@ export const queryKeys = {
     runs: (id: string) => ["automations", id, "runs"] as const,
     templates: ["automations", "templates"] as const,
   },
+  memory: ["memory"] as const,
   indexStatus: (workspace: string) => ["indexStatus", workspace] as const,
 } as const;
 

@@ -15,6 +15,13 @@ def set_session_factory(factory: async_sessionmaker[AsyncSession]) -> None:
     _session_factory = factory
 
 
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Return the session factory for direct use (not a context manager)."""
+    if _session_factory is None:
+        raise RuntimeError("Database not initialized")
+    return _session_factory
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Yield a transactional async DB session."""
     if _session_factory is None:

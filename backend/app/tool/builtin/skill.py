@@ -46,11 +46,12 @@ class SkillTool(ToolDefinition):
             "the available skills listed below:"
         )
 
-        if not self._skill_registry or self._skill_registry.count == 0:
+        active = self._skill_registry.active_skills() if self._skill_registry else []
+        if not active:
             return base + "\n\nNo skills are currently available."
 
         lines = [base, "", "<available_skills>"]
-        for skill in self._skill_registry.all_skills():
+        for skill in active:
             lines.append("  <skill>")
             lines.append(f"    <name>{skill.name}</name>")
             lines.append(f"    <description>{skill.description}</description>")
@@ -77,10 +78,10 @@ class SkillTool(ToolDefinition):
             return ToolResult(error="Skill system is not initialised.")
 
         skill = self._skill_registry.get(name)
-        if skill is None:
-            available = ", ".join(self._skill_registry.skill_names()) or "none"
+        if skill is None or self._skill_registry.is_disabled(name):
+            available = ", ".join(self._skill_registry.active_skill_names()) or "none"
             return ToolResult(
-                error=f'Skill "{name}" not found. Available skills: {available}',
+                error=f'Skill "{name}" not found or disabled. Available skills: {available}',
             )
 
         # Collect bundled files in the same directory (up to 10)

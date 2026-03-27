@@ -54,6 +54,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # --- Startup ---
 
+    # Configure app-level logging so logger.info() from app modules is visible
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s:     %(name)s - %(message)s",
+    )
+
     # Install global asyncio exception handler
     loop = asyncio.get_running_loop()
     loop.set_exception_handler(_asyncio_exception_handler)
@@ -62,6 +68,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
     set_session_factory(session_factory)
+
+    # Ensure all models are registered with Base.metadata before create_all
+    from app.memory import models as _memory_models  # noqa: F401 — registers MemoryFact, MemoryContext
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -231,7 +240,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Skill registry
     bundled_skills_dir = Path(__file__).parent / "data" / "skills"
-    skill_registry = SkillRegistry(bundled_dir=bundled_skills_dir)
+    skill_registry = SkillRegistry(bundled_dir=bundled_skills_dir, project_dir=settings.project_dir)
     skill_registry.scan(project_dir=settings.project_dir)
     app.state.skill_registry = skill_registry
 
@@ -332,6 +341,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     openclaw_manager = OpenClawManager(data_dir=data_dir)
     app.state.openclaw_manager = openclaw_manager
 
+    # Long-term memory queue (async, debounced extraction)
+    from app.memory.queue import MemoryUpdateQueue, set_memory_queue
+
+    memory_queue = MemoryUpdateQueue(session_factory, registry)
+    set_memory_queue(memory_queue)
+    app.state.memory_queue = memory_queue
 
     yield
 
@@ -398,6 +413,7 @@ def _register_builtin_tools(
     from app.tool.builtin.glob_tool import GlobTool
     from app.tool.builtin.grep import GrepTool
     from app.tool.builtin.invalid import InvalidTool
+    from app.tool.builtin.memory import MemoryTool
     from app.tool.builtin.plan import PlanTool
     from app.tool.builtin.question import QuestionTool
     from app.tool.builtin.submit_plan import SubmitPlanTool
@@ -412,7 +428,7 @@ def _register_builtin_tools(
     for tool_cls in [
         ReadTool, WriteTool, EditTool, ApplyPatchTool,
         BashTool, CodeExecuteTool,
-        GlobTool, GrepTool, QuestionTool, TodoTool,
+        GlobTool, GrepTool, QuestionTool, TodoTool, MemoryTool,
         TaskTool, WebFetchTool, WebSearchTool, InvalidTool,
         PlanTool, SubmitPlanTool, ArtifactTool,
     ]:

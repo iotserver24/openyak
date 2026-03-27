@@ -29,6 +29,10 @@ dependencies = [
     "pyyaml>=6.0",
     "croniter>=2.0.0",
 
+    # Web content extraction
+    "readabilipy>=0.2.0",
+    "markdownify>=0.14.1",
+
     # Office document reading & creation
     "pypdf>=4.0.0",
     "python-docx>=1.1.0",

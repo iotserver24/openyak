@@ -1,13 +1,17 @@
-"""Web fetch tool — fetch URL content and convert to text."""
+"""Web fetch tool — fetch URL content and convert to readable markdown."""
 
 from __future__ import annotations
 
+import logging
+import re
 from typing import Any
 
 import httpx
 
 from app.tool.base import ToolDefinition, ToolResult
 from app.tool.context import ToolContext
+
+logger = logging.getLogger(__name__)
 
 
 class WebFetchTool(ToolDefinition):
@@ -19,7 +23,7 @@ class WebFetchTool(ToolDefinition):
     @property
     def description(self) -> str:
         return (
-            "Fetch content from a URL and return it as text. "
+            "Fetch content from a URL and return it as readable markdown. "
             "Useful for reading documentation, API responses, and web pages."
         )
 
@@ -57,9 +61,8 @@ class WebFetchTool(ToolDefinition):
             content_type = resp.headers.get("content-type", "")
             text = resp.text
 
-            # Basic HTML stripping (simple approach)
             if "html" in content_type:
-                text = _strip_html(text)
+                text = extract_readable_content(text, url)
 
             if len(text) > max_length:
                 text = text[:max_length] + f"\n\n... [truncated at {max_length} chars]"
@@ -76,10 +79,55 @@ class WebFetchTool(ToolDefinition):
             return ToolResult(error=f"Request failed: {e}")
 
 
-def _strip_html(html: str) -> str:
-    """Very basic HTML tag removal."""
-    import re
+# ---------------------------------------------------------------------------
+# HTML → readable markdown extraction
+# ---------------------------------------------------------------------------
 
+def extract_readable_content(html: str, url: str = "") -> str:
+    """Extract main article content from HTML and convert to markdown.
+
+    Uses readabilipy (Readability algorithm) + markdownify for high-quality
+    extraction.  Falls back to regex stripping if the libraries fail.
+    """
+    try:
+        return _readability_extract(html, url)
+    except Exception as e:
+        logger.debug("Readability extraction failed (%s), falling back to regex", e)
+        return _strip_html(html)
+
+
+def _readability_extract(html: str, url: str = "") -> str:
+    """Readability-based extraction → markdown."""
+    from readabilipy import simple_json_from_html_string
+    from markdownify import markdownify as md
+
+    try:
+        article = simple_json_from_html_string(html, use_readability=True)
+    except Exception:
+        # Readability.js unavailable — fall back to pure-Python extraction
+        article = simple_json_from_html_string(html, use_readability=False)
+
+    title = (article.get("title") or "").strip() or None
+    html_content = article.get("content") or ""
+
+    if not html_content.strip():
+        # Readability couldn't find an article body — fall back
+        raise ValueError("Readability extracted empty content")
+
+    # Convert HTML fragment → markdown
+    markdown = md(html_content, strip=["img"]).strip()
+
+    # Collapse excessive blank lines (3+ → 2)
+    markdown = re.sub(r"\n{3,}", "\n\n", markdown)
+
+    if title:
+        markdown = f"# {title}\n\n{markdown}"
+
+    return markdown
+
+
+def _strip_html(html: str) -> str:
+    """Regex fallback — basic HTML tag removal."""
     # Remove script and style blocks
     text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)

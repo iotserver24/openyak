@@ -100,6 +100,12 @@ export const api = {
       body: data ? JSON.stringify(data) : undefined,
     }),
 
+  put: <T>(url: string, data: unknown) =>
+    request<T>(url, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
   patch: <T>(url: string, data: unknown) =>
     request<T>(url, {
       method: "PATCH",
@@ -108,6 +114,12 @@ export const api = {
 
   delete: <T>(url: string) =>
     request<T>(url, { method: "DELETE" }),
+
+  deleteWithBody: <T>(url: string, data: unknown) =>
+    request<T>(url, {
+      method: "DELETE",
+      body: JSON.stringify(data),
+    }),
 };
 
 export { ApiError };

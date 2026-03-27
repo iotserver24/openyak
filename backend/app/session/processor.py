@@ -76,8 +76,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Doom loop: block after N identical consecutive tool calls
-DOOM_LOOP_THRESHOLD = 3
+# Loop detection: two-stage warn-then-stop (replaces old doom loop)
+from app.session.loop_detection import loop_detector, LoopCheckResult
 
 # Tools that operate on file paths — used for two-dimensional permission check
 _FILE_TOOLS = frozenset({"read", "write", "edit"})
@@ -195,6 +195,68 @@ def _trim_for_context(text: str, limit: int, kind: str) -> str:
     )
 
 
+def _patch_dangling_tool_calls(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Inject synthetic tool-result messages for dangling tool calls.
+
+    A dangling tool call occurs when an assistant message contains tool_calls
+    but there is no corresponding tool-result message (e.g., user cancelled
+    mid-generation). This breaks LLMs that expect paired tool_call/tool_result
+    messages (especially Anthropic).
+
+    Patches are inserted immediately after the assistant message that made the
+    dangling call, preserving correct message ordering.
+    """
+    # Collect IDs of all existing tool-result messages
+    existing_ids: set[str] = set()
+    for msg in messages:
+        if msg.get("role") == "tool":
+            tid = msg.get("tool_call_id")
+            if tid:
+                existing_ids.add(tid)
+
+    # Quick check: anything to patch?
+    needs_patch = False
+    for msg in messages:
+        if msg.get("role") != "assistant":
+            continue
+        for tc in msg.get("tool_calls") or []:
+            tc_id = tc.get("id")
+            if tc_id and tc_id not in existing_ids:
+                needs_patch = True
+                break
+        if needs_patch:
+            break
+
+    if not needs_patch:
+        return messages
+
+    # Build patched list with synthetic tool-result messages
+    patched: list[dict[str, Any]] = []
+    patch_count = 0
+    patched_ids: set[str] = set()
+    for msg in messages:
+        patched.append(msg)
+        if msg.get("role") != "assistant":
+            continue
+        for tc in msg.get("tool_calls") or []:
+            tc_id = tc.get("id")
+            if tc_id and tc_id not in existing_ids and tc_id not in patched_ids:
+                fn = tc.get("function") or {}
+                patched.append({
+                    "role": "tool",
+                    "tool_call_id": tc_id,
+                    "content": "[Tool call was interrupted and did not return a result.]",
+                })
+                patched_ids.add(tc_id)
+                patch_count += 1
+
+    logger.warning(
+        "Patched %d dangling tool call(s) with synthetic error responses",
+        patch_count,
+    )
+    return patched
+
+
 def _sanitize_llm_messages_for_request(
     messages: list[dict[str, Any]],
     *,
@@ -208,6 +270,9 @@ def _sanitize_llm_messages_for_request(
     estimate for mixed English/CJK content). Falls back to the hard-coded
     160 000 char limit if unknown.
     """
+    # Fix dangling tool calls before any other processing
+    messages = _patch_dangling_tool_calls(messages)
+
     # Dynamic char budget based on model context window
     if model_max_context:
         max_request_chars = min(int(model_max_context * 3.5), 500_000)
@@ -456,10 +521,12 @@ class SessionProcessor:
         session_prompt: SessionPrompt,
         llm_messages: list[dict[str, Any]],
         assistant_msg_id: str,
+        middleware_ctx: Any | None = None,
     ) -> None:
         self._sp = session_prompt
         self._llm_messages = llm_messages
         self._assistant_msg_id = assistant_msg_id
+        self._mw_ctx = middleware_ctx  # MiddlewareContext from prompt.py
 
         # Step-local results exposed for SessionPrompt to accumulate
         self.usage_data: dict[str, Any] = {}
@@ -866,56 +933,31 @@ class SessionProcessor:
                 call_id = tc_data.get("id", generate_ulid())
                 tool_name, tool_args = _repair_tool_call_payload(tool_name, tool_args)
 
-                # --- Doom loop detection ---
-                sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
-                sp.doom_history.append(sig)
-                if len(sp.doom_history) >= DOOM_LOOP_THRESHOLD:
-                    recent = sp.doom_history[-DOOM_LOOP_THRESHOLD:]
-                    if all(s == recent[0] for s in recent):
-                        if job.interactive:
-                            allowed = await _ask_permission(
-                                job,
-                                call_id,
-                                "doom_loop",
-                                f"Tool '{tool_name}' called {DOOM_LOOP_THRESHOLD} times "
-                                f"with identical arguments. Continue?",
-                            )
-                            if not allowed:
-                                await _persist_tool_error(
-                                    session_factory,
-                                    self._assistant_msg_id,
-                                    job.session_id,
-                                    tool_name,
-                                    call_id,
-                                    tool_args,
-                                    "Doom loop blocked by user",
-                                )
-                                return "stop"
-                            sp.doom_history.clear()
-                        else:
-                            job.publish(
-                                SSEEvent(
-                                    AGENT_ERROR,
-                                    {
-                                        "error_type": "doom_loop",
-                                        "error_message": (
-                                            f"Detected doom loop: {tool_name} called "
-                                            f"{DOOM_LOOP_THRESHOLD} times with identical arguments"
-                                        ),
-                                        "tool": tool_name,
-                                    },
-                                )
-                            )
-                            await _persist_tool_error(
-                                session_factory,
-                                self._assistant_msg_id,
-                                job.session_id,
-                                tool_name,
-                                call_id,
-                                tool_args,
-                                "Doom loop detected",
-                            )
-                            return "stop"
+                # --- Loop detection (two-stage: warn → block) ---
+                loop_result: LoopCheckResult = loop_detector.check(
+                    job.session_id, tool_name, tool_args,
+                )
+                if loop_result.action == "block":
+                    job.publish(
+                        SSEEvent(
+                            AGENT_ERROR,
+                            {
+                                "error_type": "loop_detected",
+                                "error_message": loop_result.message,
+                                "tool": tool_name,
+                            },
+                        )
+                    )
+                    await _persist_tool_error(
+                        session_factory,
+                        self._assistant_msg_id,
+                        job.session_id,
+                        tool_name,
+                        call_id,
+                        tool_args,
+                        loop_result.message or "Loop detected — hard stop",
+                    )
+                    return "stop"
 
                 # --- Tool call repair ---
                 tool = sp.tool_registry.get(tool_name)
@@ -1082,6 +1124,11 @@ class SessionProcessor:
 
                     # Build persisted output (may include todo reminder for LLM)
                     persist_output = result.output or result.error or ""
+
+                    # Inject loop warning into output so LLM sees it
+                    if loop_result.action == "warn" and loop_result.message:
+                        persist_output += f"\n\n{loop_result.message}"
+
                     if (
                         tool.id in _MODIFYING_TOOLS
                         and tool.id != "todo"
@@ -1095,6 +1142,12 @@ class SessionProcessor:
                             "\n\n<reminder>You have an active todo list. "
                             "Call the todo tool NOW to mark this task completed "
                             "and start the next one.</reminder>"
+                        )
+
+                    # Run middleware after_tool_exec hooks
+                    if self._mw_ctx is not None:
+                        persist_output = await sp.middleware_chain.run_after_tool_exec(
+                            tool.id, tool_args, persist_output, self._mw_ctx,
                         )
 
                     # NOTE: truncation is now handled in ToolDefinition.__call__
@@ -1276,6 +1329,10 @@ class SessionProcessor:
             if should_compact(self.usage_data, max_ctx, model_max_output=max_out):
                 logger.info("Context overflow detected, running compaction")
                 return "compact"
+
+        # --- Run middleware on_step_complete ---
+        if self._mw_ctx is not None:
+            await sp.middleware_chain.run_on_step_complete(self._mw_ctx)
 
         # --- Determine continuation ---
         if not has_tool_calls:

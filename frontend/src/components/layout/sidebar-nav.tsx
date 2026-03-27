@@ -1,23 +1,14 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
-import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Timer, Plug, Wifi } from "lucide-react";
+import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/stores/sidebar-store";
 
-const NAV_ITEMS = [
-  { key: "automations", icon: Timer, href: "/automations" },
-  { key: "plugins", icon: Plug, href: "/plugins" },
-  { key: "remote", icon: Wifi, href: "/remote" },
-] as const;
-
 export function SidebarNav() {
   const { t } = useTranslation("common");
-  const pathname = usePathname();
   const { isSearchOpen, toggleSearch, searchQuery, setSearchQuery } =
     useSidebarStore();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -74,26 +65,6 @@ export function SidebarNav() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Feature nav items */}
-      {NAV_ITEMS.map(({ key, icon: Icon, href }) => {
-        const isActive = pathname?.startsWith(href) ?? false;
-        return (
-          <Link
-            key={key}
-            href={href}
-            className={cn(
-              "relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-all duration-150 ease-out",
-              isActive
-                ? "bg-[var(--sidebar-active)] text-[var(--text-primary)] shadow-[var(--sidebar-active-shadow)] ring-1 ring-[var(--sidebar-active-border)]"
-                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] active:scale-[0.98]",
-            )}
-          >
-            <Icon className="h-[18px] w-[18px] shrink-0" />
-            <span>{t(key)}</span>
-          </Link>
-        );
-      })}
 
       {/* Divider before chat list */}
       <div className="mt-1 border-b border-[var(--border-default)] opacity-50" />

@@ -170,6 +170,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     return () => document.removeEventListener("click", handler, true);
   }, []);
 
+  // Close overlay panels on page navigation
+  const closeActivity = useActivityStore((s) => s.close);
+  const closeArtifact = useArtifactStore((s) => s.close);
+  const closePlanReview = usePlanReviewStore((s) => s.close);
+  useEffect(() => {
+    closeActivity();
+    closeArtifact();
+    closePlanReview();
+  }, [pathname, closeActivity, closeArtifact, closePlanReview]);
+
   const marginLeft = isDesktop && !isCollapsed ? SIDEBAR_WIDTH : 0;
   const isChatPage = pathname?.startsWith("/c/") ?? false;
   const isActiveChat = isChatPage && pathname !== "/c/new";
