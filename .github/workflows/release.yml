@@ -285,17 +285,17 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
 
-          # Read signatures
-          WIN_SIG=$(cat artifacts/windows-bundle/*.exe.sig 2>/dev/null || echo "")
-          AARCH64_SIG=$(cat artifacts/macos-aarch64-bundle/*.app.tar.gz.sig 2>/dev/null || echo "")
-          X64_SIG=$(cat artifacts/macos-x64-bundle/*.app.tar.gz.sig 2>/dev/null || echo "")
+          # Read signatures (artifacts have subdirectories: macos/, dmg/, etc.)
+          WIN_SIG=$(find artifacts/windows-bundle -name '*.exe.sig' -exec cat {} \; 2>/dev/null || echo "")
+          AARCH64_SIG=$(find artifacts/macos-aarch64-bundle -name '*.app.tar.gz.sig' -exec cat {} \; 2>/dev/null || echo "")
+          X64_SIG=$(find artifacts/macos-x64-bundle -name '*.app.tar.gz.sig' -exec cat {} \; 2>/dev/null || echo "")
 
           # Find artifact filenames
           WIN_EXE=$(find artifacts/windows-bundle -name '*.exe' ! -name '*.sig' -exec basename {} \; | head -1)
           AARCH64_TAR=$(find artifacts/macos-aarch64-bundle -name '*.app.tar.gz' ! -name '*.sig' -exec basename {} \; | head -1)
           X64_TAR=$(find artifacts/macos-x64-bundle -name '*.app.tar.gz' ! -name '*.sig' -exec basename {} \; | head -1)
 
-          REPO="${GITHUB_REPOSITORY}"
+          DOWNLOAD_BASE="https://open-yak.com/downloads"
 
           cat > latest.json <<EOF
           {
@@ -305,15 +305,15 @@ jobs:
             "platforms": {
               "windows-x86_64": {
                 "signature": "${WIN_SIG}",
-                "url": "https://github.com/${REPO}/releases/download/${TAG}/${WIN_EXE}"
+                "url": "${DOWNLOAD_BASE}/${WIN_EXE}"
               },
               "darwin-aarch64": {
                 "signature": "${AARCH64_SIG}",
-                "url": "https://github.com/${REPO}/releases/download/${TAG}/${AARCH64_TAR}"
+                "url": "${DOWNLOAD_BASE}/OpenYak.app.tar.gz"
               },
               "darwin-x86_64": {
                 "signature": "${X64_SIG}",
-                "url": "https://github.com/${REPO}/releases/download/${TAG}/${X64_TAR}"
+                "url": "${DOWNLOAD_BASE}/OpenYak.app.tar.gz"
               }
             }
           }
