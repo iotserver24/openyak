@@ -182,16 +182,35 @@ class TaskTool(ToolDefinition):
             logger.exception("SubAgent error")
             return ToolResult(error=f"SubAgent failed: {e}")
 
-        # Extract text output from child events
-        output_parts = []
-        error_parts = []
+        # Extract text output and key tool results from child events
+        output_parts: list[str] = []
+        error_parts: list[str] = []
+        tool_results: list[str] = []
         for event in child_job.events:
             if event.event == "text-delta":
                 output_parts.append(event.data.get("text", ""))
+            elif event.event == "tool-result":
+                # Capture tool results so the parent agent has visibility
+                # into what the subagent actually found/did.
+                tool_name = event.data.get("tool", "")
+                tool_output = event.data.get("output", "")
+                if tool_name and tool_output:
+                    # Truncate individual results to avoid overwhelming the parent
+                    if len(tool_output) > 2000:
+                        tool_output = tool_output[:2000] + "... [truncated]"
+                    tool_results.append(f"[{tool_name}] {tool_output}")
             elif event.event == "error":
                 error_parts.append(event.data.get("message", ""))
 
         output = "".join(output_parts)
+
+        # Append the most recent tool results (last 5) so the parent agent
+        # can see what the subagent discovered, not just its text summary.
+        if tool_results:
+            recent_results = tool_results[-5:]
+            output += "\n\n--- Key tool results ---\n"
+            output += "\n\n".join(recent_results)
+
         if error_parts:
             output += "\n[Errors: " + "; ".join(error_parts) + "]"
         if not output.strip():
@@ -208,5 +227,6 @@ class TaskTool(ToolDefinition):
                 "depth": parent_depth + 1,
                 "resumed": resuming,
                 "events": len(child_job.events),
+                "tool_calls": len(tool_results),
             },
         )

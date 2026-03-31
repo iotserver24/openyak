@@ -361,6 +361,7 @@ class SessionProcessor:
         accumulated_reasoning = ""
         tool_calls_in_step: list[dict[str, Any]] = []
         native_search_ids: set[str] = set()
+        native_search_count: int = 0  # counts native web searches in this step
         _ws_part_ids: dict[str, str] = {}  # web_search call_id → part_id
         stream_error: Exception | None = None
 
@@ -581,6 +582,11 @@ class SessionProcessor:
                             ws_call_id = chunk.data.get("id", "")
                             ws_query = chunk.data.get("query", "")
                             native_search_ids.add(ws_call_id)
+                            native_search_count += 1
+
+                            # Drop excess searches beyond the per-step cap
+                            if native_search_count > get_settings().max_native_searches_per_step:
+                                continue
 
                             # Persist "running" tool part
                             _ws_part_ids[ws_call_id] = generate_ulid()
@@ -615,6 +621,10 @@ class SessionProcessor:
                             ws_call_id = chunk.data.get("id", "")
                             ws_query = chunk.data.get("query", "")
                             ws_results = chunk.data.get("results", [])
+
+                            # Skip results for searches that exceeded the per-step cap
+                            if ws_call_id not in _ws_part_ids:
+                                continue
 
                             # Format results like the custom web_search tool
                             output_lines: list[str] = []

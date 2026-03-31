@@ -65,6 +65,8 @@ class Settings(BaseSettings):
 
     # --- Web Search ---
     daily_search_limit: int = 20  # Max free web_search calls per day (Free/BYOK)
+    web_search_context_size: str = "low"  # "low" | "medium" | "high" — native search breadth (OpenAI subscription)
+    max_native_searches_per_step: int = 5  # cap on native web searches per agent step
 
     # --- Compaction ---
     compaction_auto: bool = True

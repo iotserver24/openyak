@@ -14,6 +14,7 @@ from typing import Any, AsyncIterator
 
 import httpx
 
+from app.config import get_settings
 from app.provider.base import BaseProvider
 from app.schemas.provider import (
     ModelCapabilities,
@@ -394,7 +395,10 @@ class OpenAISubscriptionProvider(BaseProvider):
         if tools:
             wham_tools = self._translate_tools(tools)
             # Add native web search (replaces custom web_search tool)
-            wham_tools.append({"type": "web_search"})
+            wham_tools.append({
+                "type": "web_search",
+                "search_context_size": get_settings().web_search_context_size,
+            })
             body["tools"] = wham_tools
             # Include sources in web search results
             body["include"] = ["web_search_call.action.sources"]
@@ -620,11 +624,14 @@ class OpenAISubscriptionProvider(BaseProvider):
             return ProviderStatus(status="error", error=str(e))
 
 
+_MAX_SOURCES_PER_SEARCH = 10  # cap per individual native web search call
+
+
 def _extract_web_search_results(action: dict[str, Any]) -> list[dict[str, str]]:
     """Extract search results from a web_search_call action (with sources via include)."""
     results = []
     # Sources are populated via the "include": ["web_search_call.action.sources"] directive
-    for r in action.get("sources", []):
+    for r in action.get("sources", [])[:_MAX_SOURCES_PER_SEARCH]:
         results.append({
             "url": r.get("url", ""),
             "title": r.get("title", ""),

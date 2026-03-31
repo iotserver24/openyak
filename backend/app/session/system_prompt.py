@@ -4,6 +4,10 @@ Assembles the full system prompt from:
   - Agent's base prompt template
   - Environment info (cwd, platform, date)
   - Project instructions (if any)
+
+Supports prompt caching: static sections (agent base prompt, project instructions)
+are separated from dynamic sections (environment info, workspace memory, skills)
+so that Anthropic API prompt caching can be applied to the static portion.
 """
 
 from __future__ import annotations
@@ -11,10 +15,52 @@ from __future__ import annotations
 import os
 import platform
 import time as _time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from app.schemas.agent import AgentInfo
+
+
+@dataclass(frozen=True)
+class SystemPromptParts:
+    """System prompt split into cached (static) and dynamic sections.
+
+    The cached portion (agent base prompt + project instructions) is stable
+    across turns and can benefit from Anthropic's prompt caching.
+    The dynamic portion (environment info, workspace memory, skills) changes
+    each turn and should not be cached.
+    """
+
+    cached: str
+    dynamic: str
+
+    def as_plain_text(self) -> str:
+        """Join both parts into a single string (for non-caching providers)."""
+        parts = [p for p in (self.cached, self.dynamic) if p]
+        return "\n\n".join(parts)
+
+    def as_cached_blocks(self) -> list[dict[str, Any]]:
+        """Format as Anthropic system message blocks with cache_control.
+
+        Returns a list suitable for the Anthropic API ``system`` parameter:
+        the cached block gets a ``cache_control`` marker so it is stored
+        server-side and reused across turns within the same session.
+        """
+        blocks: list[dict[str, Any]] = []
+        if self.cached:
+            blocks.append({
+                "type": "text",
+                "text": self.cached,
+                "cache_control": {"type": "ephemeral"},
+            })
+        if self.dynamic:
+            blocks.append({
+                "type": "text",
+                "text": self.dynamic,
+            })
+        return blocks
 
 
 def build_system_prompt(
@@ -25,33 +71,44 @@ def build_system_prompt(
     workspace: str | None = None,
     fts_status: dict | None = None,
     workspace_memory_section: str | None = None,
-) -> str:
-    """Build the complete system prompt for an LLM call."""
-    parts = []
+) -> SystemPromptParts:
+    """Build the complete system prompt for an LLM call.
 
-    # Agent's base prompt
+    Returns a ``SystemPromptParts`` with cached (static) and dynamic sections
+    separated so callers can apply prompt caching when the provider supports it.
+    """
+    # --- Cached (static) sections ---
+    cached_parts: list[str] = []
+
+    # Agent's base prompt (stable across turns)
     if agent.system_prompt:
-        parts.append(agent.system_prompt)
+        cached_parts.append(agent.system_prompt)
 
-    # Workspace-scoped memory (auto-injected per workspace)
-    if workspace_memory_section:
-        parts.append(workspace_memory_section)
-
-    # Environment info
-    env_info = _environment_section(directory, workspace=workspace, fts_status=fts_status)
-    parts.append(env_info)
-
-    # Project instructions (AGENTS.md, .openyak/instructions)
+    # Project instructions (stable across turns)
     project_instructions = _load_project_instructions(directory)
     if project_instructions:
-        parts.append(project_instructions)
+        cached_parts.append(project_instructions)
+
+    # --- Dynamic sections (change each turn) ---
+    dynamic_parts: list[str] = []
+
+    # Workspace-scoped memory
+    if workspace_memory_section:
+        dynamic_parts.append(workspace_memory_section)
+
+    # Environment info (timestamp changes every minute)
+    env_info = _environment_section(directory, workspace=workspace, fts_status=fts_status)
+    dynamic_parts.append(env_info)
 
     # Available skills hint
     skills_section = _skills_section(skill_names)
     if skills_section:
-        parts.append(skills_section)
+        dynamic_parts.append(skills_section)
 
-    return "\n\n".join(parts)
+    return SystemPromptParts(
+        cached="\n\n".join(cached_parts),
+        dynamic="\n\n".join(dynamic_parts),
+    )
 
 
 def _environment_section(directory: str | None = None, *, workspace: str | None = None, fts_status: dict | None = None) -> str:

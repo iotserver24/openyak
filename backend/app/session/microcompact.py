@@ -4,9 +4,10 @@ Inspired by Claude Code's microcompact system. Runs before every LLM call
 to replace old tool outputs with compact stubs, significantly reducing
 context usage without any LLM invocation.
 
-Two layers:
+Three layers (cheapest to most aggressive):
   1. microcompact_messages() — replace old outputs from specific tool types
   2. apply_tool_result_budget() — enforce aggregate size limit across all tool results
+  3. context_collapse() — drop oldest 1/3 of messages, insert boundary summary
 
 OpenAI message format handled:
   - Assistant: {"role": "assistant", "tool_calls": [{"id": "call_1", "function": {"name": "read", ...}}]}
@@ -231,3 +232,102 @@ def apply_tool_result_budget(
     )
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Layer 3: Context Collapse
+# ---------------------------------------------------------------------------
+
+def context_collapse(
+    messages: list[dict[str, Any]],
+    *,
+    collapse_fraction: float = 0.33,
+    min_messages_to_keep: int = 6,
+) -> tuple[list[dict[str, Any]], int]:
+    """Drop the oldest portion of messages and insert a boundary marker.
+
+    This is a zero-LLM-cost intermediate compression layer between
+    microcompact and full compaction. It removes the oldest ``collapse_fraction``
+    of messages (by count) and inserts a synthetic system message summarizing
+    what was dropped, preserving the most recent conversation context intact.
+
+    The boundary ensures the LLM knows context was truncated and key data
+    may need to be re-fetched.
+
+    Args:
+        messages: LLM-formatted message history (OpenAI format).
+        collapse_fraction: Fraction of messages to drop (0.0–1.0).
+        min_messages_to_keep: Minimum messages to retain after collapse.
+
+    Returns:
+        A tuple of (new_messages, tokens_saved) where tokens_saved is an
+        estimate of the tokens freed.
+    """
+    if not messages or len(messages) <= min_messages_to_keep:
+        return messages, 0
+
+    total = len(messages)
+    drop_count = int(total * collapse_fraction)
+
+    # Ensure we keep at least min_messages_to_keep
+    if total - drop_count < min_messages_to_keep:
+        drop_count = total - min_messages_to_keep
+    if drop_count <= 0:
+        return messages, 0
+
+    # Find a safe boundary: don't split mid-turn.
+    # Walk forward from the target drop_count to find a user message
+    # boundary (so we don't leave orphaned tool results).
+    boundary = drop_count
+    while boundary < total - min_messages_to_keep:
+        if messages[boundary].get("role") == "user":
+            break
+        boundary += 1
+    else:
+        # Couldn't find a clean boundary — use the original count
+        boundary = drop_count
+
+    dropped = messages[:boundary]
+    kept = messages[boundary:]
+
+    # Estimate tokens saved
+    tokens_saved = sum(estimate_tokens(_msg_text(m)) for m in dropped)
+
+    # Build a brief summary of what was dropped
+    dropped_user_msgs = [m for m in dropped if m.get("role") == "user"]
+    dropped_assistant_msgs = [m for m in dropped if m.get("role") == "assistant"]
+    dropped_tool_msgs = [m for m in dropped if m.get("role") == "tool"]
+
+    boundary_text = (
+        f"[Context collapsed: {len(dropped)} earlier messages removed "
+        f"({len(dropped_user_msgs)} user, {len(dropped_assistant_msgs)} assistant, "
+        f"{len(dropped_tool_msgs)} tool results — ~{tokens_saved:,} tokens freed). "
+        f"If you need earlier context, ask the user or re-read relevant files.]"
+    )
+
+    boundary_msg: dict[str, Any] = {
+        "role": "user",
+        "content": boundary_text,
+    }
+
+    result = [boundary_msg] + kept
+
+    logger.info(
+        "Context collapse: dropped %d/%d messages, saved ~%d tokens",
+        boundary, total, tokens_saved,
+    )
+
+    return result, tokens_saved
+
+
+def _msg_text(msg: dict[str, Any]) -> str:
+    """Extract text content from a message for token estimation."""
+    content = msg.get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(
+            block.get("text", "") for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    return ""

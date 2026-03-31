@@ -22,7 +22,7 @@ async def stream_llm(
     model_id: str,
     messages: list[dict[str, Any]],
     *,
-    system_prompt: str,
+    system_prompt: str | list[dict[str, Any]],
     agent: AgentInfo,
     tool_registry: ToolRegistry,
     extra_body: dict[str, Any] | None = None,

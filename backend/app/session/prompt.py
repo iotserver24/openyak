@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.agent import AgentRegistry
@@ -22,7 +23,7 @@ from app.agent.permission import (
     parse_session_permissions,
     presets_to_ruleset,
 )
-from app.models.message import Message
+from app.models.message import Message, Part
 from app.provider.registry import ProviderRegistry
 from app.schemas.chat import PromptRequest
 from app.session.manager import (
@@ -33,7 +34,7 @@ from app.session.manager import (
     get_session,
     update_session_title,
 )
-from app.session.system_prompt import build_system_prompt
+from app.session.system_prompt import SystemPromptParts, build_system_prompt
 from app.streaming.events import (
     AGENT_ERROR,
     DONE,
@@ -97,13 +98,17 @@ class SessionPrompt:
         self.skill_names: list[str] = []
         self.fts_status: dict[str, Any] | None = None
         self.workspace_memory_section: str | None = None
-        self.system_prompt: str = ""
+        self.system_prompt_parts: SystemPromptParts | None = None
         self.merged_permissions: list = []
         self.preset_permissions: list = []
         self.session_permissions: list = []
         self.is_first_turn: bool = False
         self.first_user_text: str = request.text
         self.session_permission_data: Any = None
+
+        # Whether the provider supports Anthropic-style prompt caching.
+        # Set during _setup() after provider is resolved.
+        self._supports_prompt_caching: bool = False
 
         # Middleware chain (composable cross-cutting concerns)
         from app.session.middlewares.factory import build_middleware_chain
@@ -132,8 +137,28 @@ class SessionPrompt:
         }
         self.current_todos: list[dict[str, Any]] = []
         self.continuation_attempts: int = 0
+        self._length_continuations: int = 0
+        self._context_collapse_exhausted: bool = False
         self.finish_reason: str = "stop"
         self.assistant_msg_id: str | None = None
+
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
+
+    @property
+    def system_prompt(self) -> str | list[dict[str, Any]]:
+        """Return the system prompt formatted for the active provider.
+
+        For Anthropic providers, returns a list of content blocks with
+        ``cache_control`` on the static portion (enables prompt caching).
+        For all other providers, returns a plain concatenated string.
+        """
+        if self.system_prompt_parts is None:
+            return ""
+        if self._supports_prompt_caching:
+            return self.system_prompt_parts.as_cached_blocks()
+        return self.system_prompt_parts.as_plain_text()
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -184,6 +209,12 @@ class SessionPrompt:
 
         self.provider, self.model_info = resolved
         self.model_id = model_id
+
+        # Enable prompt caching for Anthropic provider
+        self._supports_prompt_caching = (
+            self.provider.id == "anthropic"
+            or (self.model_info and getattr(self.model_info.capabilities, "prompt_caching", False))
+        )
 
         # Remember last-used Ollama model for startup pre-warming
         if self.provider.id == "ollama":
@@ -297,7 +328,7 @@ class SessionPrompt:
             except Exception:
                 logger.debug("Workspace memory injection skipped", exc_info=True)
 
-        self.system_prompt = build_system_prompt(
+        self.system_prompt_parts = build_system_prompt(
             self.agent,
             directory=self.directory,
             skill_names=self.skill_names if self.skill_names else None,
@@ -352,7 +383,7 @@ class SessionPrompt:
         from app.session.utils import sanitize_llm_messages_for_request as _sanitize_llm_messages_for_request
         from app.session.compaction import run_compaction, should_compact
         from app.session.manager import create_message as _create_message, get_message_history_for_llm
-        from app.session.microcompact import microcompact_messages, apply_tool_result_budget
+        from app.session.microcompact import microcompact_messages, apply_tool_result_budget, context_collapse
 
         _hard_cap_final_done = False
         _consecutive_compact_failures = 0
@@ -477,6 +508,9 @@ class SessionPrompt:
             # Accumulate cost and tokens from this step
             self.total_cost += processor.step_cost
             self.finish_reason = processor.finish_reason
+            # Reset length continuation counter when model finishes normally
+            if self.finish_reason != "length":
+                self._length_continuations = 0
             if processor.usage_data:
                 for k in self.total_tokens_accumulated:
                     self.total_tokens_accumulated[k] += processor.usage_data.get(k, 0)
@@ -491,58 +525,96 @@ class SessionPrompt:
 
             # Handle processor result
             if result == "compact":
-                # Queue workspace memory BEFORE compaction so important info
-                # from messages about to be pruned is preserved in memory.
-                if self.workspace and self.workspace != ".":
+                # --- Layer 3: Try context collapse first (zero LLM cost) ---
+                # Drop the oldest 1/3 of messages. If that frees enough
+                # tokens, skip the expensive LLM-based full compaction.
+                _skip_full_compaction = False
+                if not self._context_collapse_exhausted:
                     try:
-                        from app.memory.workspace_memory_queue import get_workspace_memory_queue
-
-                        _ws_mq = get_workspace_memory_queue()
-                        if _ws_mq is not None:
-                            async with self.session_factory() as db:
-                                async with db.begin():
-                                    _pre_msgs = await get_message_history_for_llm(
-                                        db, self.job.session_id
-                                    )
-                            _ws_mq.add(
+                        async with self.session_factory() as db:
+                            async with db.begin():
+                                _collapse_msgs = await get_message_history_for_llm(
+                                    db, self.job.session_id
+                                )
+                        collapsed, tokens_saved = context_collapse(_collapse_msgs)
+                        if tokens_saved > 0:
+                            # Persist the collapsed messages by deleting old ones
+                            await _persist_context_collapse(
                                 self.job.session_id,
-                                self.workspace,
-                                _pre_msgs,
-                                model_id=self.model_id,
+                                collapsed,
+                                session_factory=self.session_factory,
                             )
+                            logger.info(
+                                "Context collapse freed ~%d tokens, "
+                                "skipping full compaction",
+                                tokens_saved,
+                            )
+                            _skip_full_compaction = True
+                        else:
+                            # Nothing to collapse — mark exhausted so we
+                            # go straight to full compaction next time
+                            self._context_collapse_exhausted = True
                     except Exception:
                         logger.debug(
-                            "Pre-compaction workspace memory queue failed",
+                            "Context collapse failed, falling back to full compaction",
                             exc_info=True,
                         )
+                        self._context_collapse_exhausted = True
 
-                try:
-                    await run_compaction(
-                        self.job.session_id,
-                        job=self.job,
-                        session_factory=self.session_factory,
-                        provider_registry=self.provider_registry,
-                        agent_registry=self.agent_registry,
-                        model_id=self.model_id,
-                    )
-                    _consecutive_compact_failures = 0
-                except Exception:
-                    _consecutive_compact_failures += 1
-                    logger.warning(
-                        "Compaction failed (%d/%d) for session %s",
-                        _consecutive_compact_failures,
-                        _MAX_CONSECUTIVE_COMPACT_FAILURES,
-                        self.job.session_id,
-                        exc_info=True,
-                    )
-                    if _consecutive_compact_failures >= _MAX_CONSECUTIVE_COMPACT_FAILURES:
-                        self.job.publish(SSEEvent(AGENT_ERROR, {
-                            "error_message": (
-                                "Context compression failed repeatedly. "
-                                "Please start a new conversation."
-                            ),
-                        }))
-                        break
+                if not _skip_full_compaction:
+                    # --- Layer 4: Full LLM-based compaction ---
+                    # Queue workspace memory BEFORE compaction so important info
+                    # from messages about to be pruned is preserved in memory.
+                    if self.workspace and self.workspace != ".":
+                        try:
+                            from app.memory.workspace_memory_queue import get_workspace_memory_queue
+
+                            _ws_mq = get_workspace_memory_queue()
+                            if _ws_mq is not None:
+                                async with self.session_factory() as db:
+                                    async with db.begin():
+                                        _pre_msgs = await get_message_history_for_llm(
+                                            db, self.job.session_id
+                                        )
+                                _ws_mq.add(
+                                    self.job.session_id,
+                                    self.workspace,
+                                    _pre_msgs,
+                                    model_id=self.model_id,
+                                )
+                        except Exception:
+                            logger.debug(
+                                "Pre-compaction workspace memory queue failed",
+                                exc_info=True,
+                            )
+
+                    try:
+                        await run_compaction(
+                            self.job.session_id,
+                            job=self.job,
+                            session_factory=self.session_factory,
+                            provider_registry=self.provider_registry,
+                            agent_registry=self.agent_registry,
+                            model_id=self.model_id,
+                        )
+                        _consecutive_compact_failures = 0
+                    except Exception:
+                        _consecutive_compact_failures += 1
+                        logger.warning(
+                            "Compaction failed (%d/%d) for session %s",
+                            _consecutive_compact_failures,
+                            _MAX_CONSECUTIVE_COMPACT_FAILURES,
+                            self.job.session_id,
+                            exc_info=True,
+                        )
+                        if _consecutive_compact_failures >= _MAX_CONSECUTIVE_COMPACT_FAILURES:
+                            self.job.publish(SSEEvent(AGENT_ERROR, {
+                                "error_message": (
+                                    "Context compression failed repeatedly. "
+                                    "Please start a new conversation."
+                                ),
+                            }))
+                            break
 
                 # Todo context recovery: after compaction the LLM may have
                 # lost awareness of outstanding todos (the original todo tool
@@ -586,12 +658,24 @@ class SessionPrompt:
 
             if result == "stop":
                 # Length continuation: model hit token limit, keep going
+                # Cap at 3 to prevent runaway token consumption.
                 if self.finish_reason == "length":
-                    logger.info(
-                        "finish_reason=length at step %d, continuing for more output",
-                        self.step,
-                    )
-                    continue
+                    self._length_continuations += 1
+                    if self._length_continuations <= 3:
+                        logger.info(
+                            "finish_reason=length at step %d (attempt %d/3), "
+                            "continuing for more output",
+                            self.step,
+                            self._length_continuations,
+                        )
+                        continue
+                    else:
+                        logger.warning(
+                            "finish_reason=length exceeded max continuations (3) "
+                            "at step %d, stopping to prevent runaway token usage",
+                            self.step,
+                        )
+                        # Fall through to stop
 
                 # First-turn tool nudge: if step 1 had 3+ attachments but no tool calls,
                 # nudge the model to use tools for analysis
@@ -768,10 +852,74 @@ class SessionPrompt:
             self.preset_permissions,
             self.session_permissions,
         )
-        self.system_prompt = build_system_prompt(
+        self.system_prompt_parts = build_system_prompt(
             self.agent,
             directory=self.directory,
             workspace=self.workspace,
             fts_status=self.fts_status,
             workspace_memory_section=self.workspace_memory_section,
         )
+
+
+async def _persist_context_collapse(
+    session_id: str,
+    collapsed_messages: list[dict[str, Any]],
+    *,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Persist context collapse by deleting old messages and inserting a boundary.
+
+    The first message in ``collapsed_messages`` is expected to be the
+    synthetic boundary marker from ``context_collapse()``.
+    """
+    if not collapsed_messages:
+        return
+
+    boundary = collapsed_messages[0]
+
+    async with session_factory() as db:
+        async with db.begin():
+            # Get all existing messages ordered by time
+            stmt = (
+                select(Message)
+                .where(Message.session_id == session_id)
+                .order_by(Message.time_created.asc())
+            )
+            result = await db.execute(stmt)
+            db_messages = list(result.scalars().all())
+
+            if not db_messages:
+                return
+
+            # Calculate how many DB messages to delete.
+            # collapsed_messages = [boundary_marker] + kept_messages
+            # Original had len(db_messages) messages total.
+            # kept_messages count = len(collapsed_messages) - 1 (boundary marker)
+            kept_count = len(collapsed_messages) - 1
+            delete_count = len(db_messages) - kept_count
+            if delete_count <= 0:
+                return
+
+            # Delete the oldest messages (and their parts via cascade)
+            for msg in db_messages[:delete_count]:
+                await db.delete(msg)
+
+            # Insert the boundary marker as a synthetic user message
+            if boundary.get("content"):
+                boundary_msg = Message(
+                    session_id=session_id,
+                    data={"role": "user", "agent": "system", "system": True},
+                )
+                db.add(boundary_msg)
+                await db.flush()
+
+                boundary_part = Part(
+                    message_id=boundary_msg.id,
+                    session_id=session_id,
+                    data={
+                        "type": "text",
+                        "text": boundary["content"],
+                        "synthetic": True,
+                    },
+                )
+                db.add(boundary_part)
