@@ -6,60 +6,143 @@
 
 <h1 align="center">Yak is all you need.</h1>
 
-<p align="center"><strong>Your desktop AI agent — private, powerful, personal.</strong></p>
+<p align="center"><strong>Your Local AI Agent — edit files, run workflows, and connect the models you want.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/openyak/desktop/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/openyak/desktop/ci.yml?branch=main&style=flat-square&label=Tests %26 Type Check" alt="Tests & Type Check" /></a>
+  <a href="https://github.com/openyak/desktop/stargazers"><img src="https://img.shields.io/github/stars/openyak/desktop?style=flat-square" alt="GitHub Stars" /></a>
+  <a href="https://github.com/openyak/desktop/blob/main/LICENSE"><img src="https://img.shields.io/github/license/openyak/desktop?style=flat-square" alt="License" /></a>
+  <a href="https://github.com/openyak/desktop/releases/latest"><img src="https://img.shields.io/github/v/release/openyak/desktop?style=flat-square" alt="Latest Release" /></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue?style=flat-square" alt="Platform: macOS | Windows" />
+  <a href="https://github.com/openyak/desktop/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs Welcome" /></a>
+</p>
 
 <p align="center">
   <img src="OpenYak-Logo/openyak-demo.gif" width="800" alt="OpenYak Demo" />
 </p>
 
-<p align="center">
-  OpenYak is an open-source desktop AI assistant that keeps your data on your machine.<br/>
-  Connect to 100+ cloud models via API, or run open-source models locally through Ollama — your choice.<br/>
-  Manage files, analyze data, draft documents, and automate office workflows — all without uploading your files to the cloud.
-</p>
-
 ---
-
-## What You Can Do
-
-**Office Automation** — Batch rename, sort, and clean up files across folders with auditable change logs. No more manual filing.
-
-**Data Analysis** — Parse spreadsheets, CSVs, and documents locally. Spot anomalies, track trends, and export decision-ready reports — without uploading a single file.
-
-**Content & Writing** — Turn rough notes into polished documents. Draft memos, policy updates, and professional communications in a consistent company tone.
-
-**Team Operations** — Merge notes from PDFs, DOCX, and CSVs into structured briefings. Auto-extract action items, assign owners, and track deadlines.
-
-**IM Integration** — Connect 8+ messaging platforms — WhatsApp, Discord, Telegram, Slack, Feishu, Signal, iMessage — through OpenClaw. Let your AI assistant receive and reply to messages across all your channels from one place.
-
-**Automations** — Schedule recurring tasks with cron-based triggers. Daily data digests, weekly reports, automated file cleanup — set it once and let Yak handle it.
-
-**Remote Workflows** — Start on your desktop, continue on your phone. One-click secure tunnel with QR code access from any device.
 
 ## Why OpenYak
 
-- **Your Data Stays Local** — Files, conversations, and memory are stored on your machine. No cloud storage, no telemetry. Nothing leaves your device unless you choose a cloud model.
-- **Ollama Support** — Run open-source models (Llama, DeepSeek, Qwen, Gemma, Mistral, etc.) 100% locally through [Ollama](https://ollama.com). Zero data leaves your machine — true offline-capable AI. Auto-detects your installed models with full tool-calling support.
-- **100+ Cloud Models** — Access the latest models through OpenRouter — Claude Opus 4.6 & Sonnet 4.6, DeepSeek V3.2, Gemini 3 Flash, GPT-4.1, MiniMax M2.5, Step 3.5 Flash, MiMo-V2-Pro, and more.
-- **20+ BYOK Providers** — Bring your own API key for OpenAI, Anthropic, Google, Groq, DeepSeek, Mistral, xAI, and more — including Chinese providers like Qwen, Kimi, MiniMax, and ZhiPu.
-- **ChatGPT Subscription** — Already paying for ChatGPT? Connect your ChatGPT subscription directly — no extra API costs.
-- **20+ Built-in Tools** — File read/write/edit, bash execution, glob/grep search, web fetch, long-term memory, and more.
-- **7 Agent Modes** — Specialized agents for building, planning, exploring, and more — with multi-step tool calling and sub-agent nesting.
-- **Long-term Memory** — Yak remembers your preferences, work context, and key facts across conversations. Your memory, stored locally.
-- **MCP Connectors** — Integrate external tools and services via Model Context Protocol. Connect to any MCP-compatible server.
-- **Free to Start** — 1M tokens/week on free models. Pay-as-you-go at OpenRouter prices with zero markup. Or bring your own API key.
+- **Organize 500 contracts without uploading a single file.** OpenYak runs on your desktop with direct access to your filesystem — your data never leaves your machine.
+
+- **Switch from GPT-4o to DeepSeek in one click.** 100+ cloud models, 20+ API providers, or run fully offline with [Ollama](https://ollama.com). No lock-in.
+
+- **Let AI handle the tedious work.** 20+ built-in tools — read, write, rename files, run commands, parse spreadsheets, draft documents — all locally.
+
+- **Free to start, no credit card.** 1M tokens per week on free models. Premium models at API prices with zero markup.
+
+## Download
+
+| Platform | Architecture |
+|----------|-------------|
+| macOS | Apple Silicon |
+| macOS | Intel |
+| Windows | x64 |
+
+> **[Download Latest Release](https://github.com/openyak/desktop/releases/latest)** or visit [open-yak.com/download](https://open-yak.com/download/)
 
 ## Get Started
 
-1. **Download** the installer for [Windows or macOS](https://open-yak.com/download/)
+1. **Download** the installer for your platform from the table above
 2. **Connect a model** — use free cloud models instantly, top up for premium models, bring your own API key from 20+ providers, or run fully local with [Ollama](https://ollama.com)
 3. **Start working** — manage files, analyze local data, and generate office-ready outputs
 
+## What You Can Do
+
+**File Management** — Rename, sort, and clean up files across folders. Set up recurring tasks — daily inbox tidy, weekly download cleanup — and let Yak handle it on schedule.
+
+**Document & Spreadsheet Creation** — Turn notes into formatted reports, spreadsheets with working formulas, and export-ready PDFs. AI generates the actual files — not just text you have to copy-paste and format yourself.
+
+**Data Analysis** — Parse spreadsheets, CSVs, and documents on your machine. Spot trends, flag anomalies, and export reports — your data never leaves your device.
+
+**Research & Synthesis** — Pull information from PDFs, local files, and the web. Summarize across sources, extract key points, and compile structured briefs — ready for review, not raw dumps.
+
+Connect to 46+ services — Slack, Notion, GitHub, Figma, and more — through built-in connectors. Or add your own via MCP.
+
+## Supported Providers
+
+### Cloud (via API)
+
+| Provider | Access | |
+|----------|--------|-|
+| OpenAI | BYOK | ⭐ Recommended |
+| Anthropic | BYOK | ⭐ Recommended |
+| Google | BYOK | |
+| DeepSeek | BYOK | |
+| Grok | BYOK | |
+| Qwen | BYOK | ⭐ Recommended |
+| Kimi | BYOK | |
+| MiniMax | BYOK | ⭐ Recommended |
+
+### Local (via Ollama)
+
+Run any model available on [Ollama](https://ollama.com) — fully offline, auto-detected, with tool-calling support.
+
+> **BYOK** = Bring Your Own Key. Use your own API key — no markup, no middleman.
+
 ## For Developers
 
-Looking for technical details, project structure, or development setup? See [frontend/README.md](frontend/README.md) and [backend/README.md](backend/README.md).
+**Tech Stack**: Tauri v2 (Rust) + Next.js 15 + FastAPI + SQLite
+
+**Monorepo Structure**:
+
+```
+desktop-tauri/    Rust — desktop shell, system integration
+frontend/         Next.js 15 — chat UI, state management, SSE streaming
+backend/          FastAPI — agent engine, tool execution, LLM streaming, storage
+```
+
+**Quick Start**:
+
+```bash
+npm run dev:all    # Start backend (port 8000) + frontend (port 3000)
+```
+
+For full technical details, project structure, and development setup, see [frontend/README.md](frontend/README.md) and [backend/README.md](backend/README.md).
+
+## FAQ
+
+<details>
+<summary>Does my data leave my machine?</summary>
+
+No. All files, conversations, and memory are stored locally on your device. The only data sent externally is your prompt text when using a cloud model — and even that goes directly to the model provider's API. No telemetry, no analytics, no cloud storage.
+</details>
+
+<details>
+<summary>Is it free to use?</summary>
+
+Yes. OpenYak includes 1M tokens per week on free models through OpenRouter at no cost. For premium models, you pay OpenRouter's prices with zero markup. You can also bring your own API key from 20+ providers, or run fully offline with Ollama for free.
+</details>
+
+<details>
+<summary>Can I use it offline?</summary>
+
+Yes. Install Ollama, download a model, and OpenYak works completely offline. No internet connection required. OpenYak auto-detects your local Ollama models and supports full tool-calling with them.
+</details>
+
+<details>
+<summary>What models are supported?</summary>
+
+100+ cloud models via OpenRouter, 20+ BYOK providers with direct API keys, and any model available through Ollama for local inference. New models are available as soon as they launch. See the Supported Providers section above.
+</details>
+
+<details>
+<summary>How is this different from ChatGPT or Claude.ai?</summary>
+
+OpenYak runs on your desktop with direct access to your local files and system. It can read, write, and organize your files, execute commands, and automate workflows — all while keeping your data on your machine. Web-based assistants cannot access your local filesystem.
+</details>
+
+## Community
+
+- **Questions & Discussions** — [GitHub Discussions](https://github.com/openyak/desktop/discussions)
+- **Bug Reports** — [GitHub Issues](https://github.com/openyak/desktop/issues)
+- **Contributing** — [CONTRIBUTING.md](CONTRIBUTING.md) — PRs and feedback welcome
 
 ## Star History
+
+If OpenYak is useful to you, consider giving it a star — it helps others discover the project.
 
 <a href="https://star-history.com/#openyak/desktop&Date">
  <picture>
