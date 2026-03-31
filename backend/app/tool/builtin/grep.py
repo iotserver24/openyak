@@ -23,6 +23,10 @@ class GrepTool(ToolDefinition):
         return "grep"
 
     @property
+    def is_concurrency_safe(self) -> bool:
+        return True
+
+    @property
     def description(self) -> str:
         return (
             "Search file contents using regex patterns. "

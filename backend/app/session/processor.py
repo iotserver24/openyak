@@ -39,7 +39,9 @@ from app.session.manager import (
 from app.session.retry import (
     MAX_RETRIES,
     is_auth_error,
+    is_context_overflow,
     is_retryable,
+    max_retries_for_error,
     retry_delay,
     sleep_with_abort,
 )
@@ -362,6 +364,14 @@ class SessionProcessor:
         _ws_part_ids: dict[str, str] = {}  # web_search call_id → part_id
         stream_error: Exception | None = None
 
+        # Streaming tool executor: starts concurrent-safe tools during streaming
+        from app.session.tool_executor import StreamingToolExecutor, ToolCallInfo
+        streaming_executor = StreamingToolExecutor(job.abort_event)
+        # Maps submission index → metadata for post-processing
+        _exec_metadata: dict[int, dict[str, Any]] = {}
+        _exec_index = 0
+        _exec_blocked = False  # Set True if loop detection blocks
+
         # --- Stream from LLM with retry ---
         for attempt in range(MAX_RETRIES + 1):
             if job.abort_event.is_set():
@@ -448,6 +458,123 @@ class SessionProcessor:
                         case "tool-call":
                             has_tool_calls = True
                             tool_calls_in_step.append(chunk.data)
+
+                            # --- Streaming tool execution: prepare & submit immediately ---
+                            if not _exec_blocked:
+                                _tc = chunk.data
+                                _tn = _tc.get("name", "")
+                                _ta = _tc.get("arguments", {})
+                                _ci = _tc.get("id", generate_ulid())
+                                _tn, _ta = _repair_tool_call_payload(_tn, _ta)
+
+                                # Loop detection
+                                _lr: LoopCheckResult = loop_detector.check(job.session_id, _tn, _ta)
+                                if _lr.action == "block":
+                                    job.publish(SSEEvent(AGENT_ERROR, {
+                                        "error_type": "loop_detected",
+                                        "error_message": _lr.message,
+                                        "tool": _tn,
+                                    }))
+                                    await _persist_tool_error(
+                                        session_factory, self._assistant_msg_id,
+                                        job.session_id, _tn, _ci, _ta,
+                                        _lr.message or "Loop detected — hard stop",
+                                    )
+                                    _exec_blocked = True
+                                    continue
+
+                                # Resolve tool
+                                _tool = sp.tool_registry.get(_tn)
+                                if _tool is None:
+                                    _tool = sp.tool_registry.get(_tn.lower())
+                                if _tool is None:
+                                    _tool = sp.tool_registry.get("invalid")
+                                    if _tool:
+                                        _ta = {"name": _tn}
+                                if _tool is None:
+                                    job.publish(SSEEvent(TOOL_ERROR, {"call_id": _ci, "error": f"Tool not found: {_tn}"}))
+                                    continue
+
+                                # Permission check
+                                _rp = "*"
+                                if _tool.id in _FILE_TOOLS:
+                                    _rp = _ta.get("file_path", "*")
+                                _action = evaluate(_tool.id, _rp, sp.merged_permissions)
+
+                                if _action == "deny":
+                                    job.publish(SSEEvent(TOOL_ERROR, {"call_id": _ci, "error": f"Permission denied for tool: {_tool.id}"}))
+                                    await _persist_tool_error(
+                                        session_factory, self._assistant_msg_id,
+                                        job.session_id, _tool.id, _ci, _ta, "Permission denied",
+                                    )
+                                    continue
+
+                                if _action == "ask":
+                                    if job.interactive:
+                                        _allowed = await _ask_permission(
+                                            job, _ci, _tool.id,
+                                            f"Allow tool '{_tool.id}' with arguments: "
+                                            f"{json.dumps(_ta, default=str)[:200]}?",
+                                        )
+                                        if not _allowed:
+                                            job.publish(SSEEvent(TOOL_ERROR, {"call_id": _ci, "error": f"User denied permission for: {_tool.id}"}))
+                                            await _persist_tool_error(
+                                                session_factory, self._assistant_msg_id,
+                                                job.session_id, _tool.id, _ci, _ta, "Permission denied by user",
+                                            )
+                                            continue
+
+                                # Persist "running" state
+                                _tpid = generate_ulid()
+                                async with session_factory() as db:
+                                    async with db.begin():
+                                        await create_part(
+                                            db, message_id=self._assistant_msg_id,
+                                            session_id=job.session_id, part_id=_tpid,
+                                            data={"type": "tool", "tool": _tool.id, "call_id": _ci,
+                                                  "state": {"status": "running", "input": _ta}},
+                                        )
+                                job.publish(SSEEvent(TOOL_START, {
+                                    "tool": _tool.id, "call_id": _ci,
+                                    "arguments": _ta, "session_id": job.session_id,
+                                }))
+
+                                # Build context
+                                _ctx = ToolContext(
+                                    session_id=job.session_id,
+                                    message_id=self._assistant_msg_id,
+                                    agent=sp.agent, call_id=_ci,
+                                    abort_event=job.abort_event,
+                                    workspace=sp.workspace,
+                                    index_manager=getattr(sp, "index_manager", None),
+                                    messages=self._llm_messages,
+                                    _publish_fn=lambda et, d: job.publish(SSEEvent(et, d)),
+                                )
+                                _ctx._app_state = {  # type: ignore[attr-defined]
+                                    "session_factory": session_factory,
+                                    "provider_registry": sp.provider_registry,
+                                    "agent_registry": sp.agent_registry,
+                                    "tool_registry": sp.tool_registry,
+                                }
+                                _ctx._model_id = sp.model_id  # type: ignore[attr-defined]
+                                _ctx._job = job  # type: ignore[attr-defined]
+                                _ctx._depth = job._depth  # type: ignore[attr-defined]
+
+                                # Submit to streaming executor (concurrent tools start NOW)
+                                streaming_executor.submit(ToolCallInfo(
+                                    index=_exec_index, tool=_tool,
+                                    tool_name=_tool.id, tool_args=_ta,
+                                    call_id=_ci, ctx=_ctx,
+                                    timeout=_cfg().tool_timeout,
+                                ))
+                                _exec_metadata[_exec_index] = {
+                                    "tool_part_id": _tpid,
+                                    "loop_result": _lr,
+                                    "tool": _tool,
+                                    "tool_args": _ta,
+                                    "call_id": _ci,
+                                }
+                                _exec_index += 1
 
                         case "web-search-start":
                             # Native web search started (OpenAI subscription)
@@ -625,12 +752,13 @@ class SessionProcessor:
                 stream_error = e
                 retry_reason = is_retryable(e)
 
-                if retry_reason and attempt < MAX_RETRIES:
+                _effective_max = max_retries_for_error(e)
+                if retry_reason and attempt < _effective_max:
                     delay = retry_delay(attempt, e)
                     logger.warning(
                         "LLM stream error (attempt %d/%d, %s), retrying in %.1fs: %s",
                         attempt + 1,
-                        MAX_RETRIES,
+                        _effective_max,
                         retry_reason,
                         delay,
                         e,
@@ -659,6 +787,17 @@ class SessionProcessor:
                     break
 
         if stream_error:
+            # --- Reactive compact: recover from context overflow via compaction ---
+            # Inspired by Claude Code's reactive compact pattern.
+            if is_context_overflow(stream_error):
+                logger.info(
+                    "Context overflow detected, triggering reactive compaction "
+                    "for session %s",
+                    job.session_id,
+                )
+                await _delete_empty_assistant_messages(session_factory, job.session_id)
+                return "compact"
+
             logger.exception("LLM stream error (not retryable or retries exhausted)")
             if accumulated_text:
                 async with session_factory() as db:
@@ -722,164 +861,54 @@ class SessionProcessor:
             if not tool_calls_in_step:
                 has_tool_calls = False
 
-        if has_tool_calls and tool_calls_in_step:
-            for tc_data in tool_calls_in_step:
-                if job.abort_event.is_set():
-                    break
+        if has_tool_calls and streaming_executor.has_submissions:
+            if _exec_blocked:
+                return "stop"
 
-                tool_name = tc_data.get("name", "")
-                tool_args = tc_data.get("arguments", {})
-                call_id = tc_data.get("id", generate_ulid())
-                tool_name, tool_args = _repair_tool_call_payload(tool_name, tool_args)
+            # === Collect results — concurrent tools already running, exclusive run now ===
+            exec_results = await streaming_executor.collect()
 
-                # --- Loop detection (two-stage: warn → block) ---
-                loop_result: LoopCheckResult = loop_detector.check(
-                    job.session_id, tool_name, tool_args,
-                )
-                if loop_result.action == "block":
-                    job.publish(
-                        SSEEvent(
-                            AGENT_ERROR,
-                            {
-                                "error_type": "loop_detected",
-                                "error_message": loop_result.message,
-                                "tool": tool_name,
-                            },
+            # === Finalize — persist results, emit SSE, handle side effects ===
+            if exec_results:
+                for exec_result in exec_results:
+                    meta = _exec_metadata.get(exec_result.index)
+                    if meta is None:
+                        continue
+
+                    tool_part_id = meta["tool_part_id"]
+                    loop_result = meta["loop_result"]
+                    tool = meta["tool"]
+                    tool_args = meta["tool_args"]
+                    call_id = meta["call_id"]
+
+                    # Handle timeout
+                    if exec_result.timed_out:
+                        timeout_msg = f"Tool timed out after {_cfg().tool_timeout}s: {tool.id}"
+                        logger.warning(timeout_msg)
+                        job.publish(SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": timeout_msg}))
+                        await _update_tool_part_error(
+                            session_factory, tool_part_id, tool.id, call_id, tool_args, timeout_msg,
                         )
-                    )
-                    await _persist_tool_error(
-                        session_factory,
-                        self._assistant_msg_id,
-                        job.session_id,
-                        tool_name,
-                        call_id,
-                        tool_args,
-                        loop_result.message or "Loop detected — hard stop",
-                    )
-                    return "stop"
+                        continue
 
-                # --- Tool call repair ---
-                tool = sp.tool_registry.get(tool_name)
-                if tool is None:
-                    tool = sp.tool_registry.get(tool_name.lower())
-                if tool is None:
-                    tool = sp.tool_registry.get("invalid")
-                    if tool:
-                        tool_args = {"name": tool_name}
-
-                if tool is None:
-                    job.publish(
-                        SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": f"Tool not found: {tool_name}"})
-                    )
-                    continue
-
-                # --- Two-dimensional permission check ---
-                resource_pattern = "*"
-                if tool.id in _FILE_TOOLS:
-                    resource_pattern = tool_args.get("file_path", "*")
-
-                action = evaluate(tool.id, resource_pattern, sp.merged_permissions)
-
-                if action == "deny":
-                    job.publish(
-                        SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": f"Permission denied for tool: {tool.id}"})
-                    )
-                    await _persist_tool_error(
-                        session_factory,
-                        self._assistant_msg_id,
-                        job.session_id,
-                        tool.id,
-                        call_id,
-                        tool_args,
-                        "Permission denied",
-                    )
-                    continue
-
-                if action == "ask":
-                    if job.interactive:
-                        allowed = await _ask_permission(
-                            job,
-                            call_id,
-                            tool.id,
-                            f"Allow tool '{tool.id}' with arguments: "
-                            f"{json.dumps(tool_args, default=str)[:200]}?",
+                    # Handle execution error
+                    if exec_result.error is not None:
+                        if isinstance(exec_result.error, RejectedError):
+                            err_msg = f"Permission denied: {exec_result.error.permission}"
+                        else:
+                            err_msg = str(exec_result.error)
+                            logger.exception("Tool execution error: %s", tool.id)
+                        job.publish(SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": err_msg}))
+                        await _update_tool_part_error(
+                            session_factory, tool_part_id, tool.id, call_id, tool_args, err_msg,
                         )
-                        if not allowed:
-                            job.publish(
-                                SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": f"User denied permission for: {tool.id}"})
-                            )
-                            await _persist_tool_error(
-                                session_factory,
-                                self._assistant_msg_id,
-                                job.session_id,
-                                tool.id,
-                                call_id,
-                                tool_args,
-                                "Permission denied by user",
-                            )
-                            continue
-                    # else: auto-approve in headless/test mode
+                        continue
 
-                # --- Execute tool (2-phase ToolPart state machine) ---
-                # Phase 1: persist "running" and emit TOOL_START SSE so the UI shows it immediately.
-                # SSE handles real-time display; a separate "pending" DB write adds a roundtrip
-                # with no observable benefit since the frontend is driven by SSE events.
-                tool_part_id = generate_ulid()
-                async with session_factory() as db:
-                    async with db.begin():
-                        await create_part(
-                            db,
-                            message_id=self._assistant_msg_id,
-                            session_id=job.session_id,
-                            part_id=tool_part_id,
-                            data={
-                                "type": "tool",
-                                "tool": tool.id,
-                                "call_id": call_id,
-                                "state": {"status": "running", "input": tool_args},
-                            },
-                        )
+                    result = exec_result.result
+                    if result is None:
+                        continue
 
-                job.publish(
-                    SSEEvent(
-                        TOOL_START,
-                        {
-                            "tool": tool.id,
-                            "call_id": call_id,
-                            "arguments": tool_args,
-                            "session_id": job.session_id,
-                        },
-                    )
-                )
-
-                ctx = ToolContext(
-                    session_id=job.session_id,
-                    message_id=self._assistant_msg_id,
-                    agent=sp.agent,
-                    call_id=call_id,
-                    abort_event=job.abort_event,
-                    workspace=sp.workspace,
-                    index_manager=getattr(sp, "index_manager", None),
-                    messages=self._llm_messages,
-                    _publish_fn=lambda event_type, data: job.publish(SSEEvent(event_type, data)),
-                )
-                # Inject runtime state for task tool and question tool
-                ctx._app_state = {  # type: ignore[attr-defined]
-                    "session_factory": session_factory,
-                    "provider_registry": sp.provider_registry,
-                    "agent_registry": sp.agent_registry,
-                    "tool_registry": sp.tool_registry,
-                }
-                ctx._model_id = sp.model_id  # type: ignore[attr-defined]
-                ctx._job = job  # type: ignore[attr-defined]
-                ctx._depth = job._depth  # type: ignore[attr-defined]
-
-                try:
-                    result = await asyncio.wait_for(
-                        tool(tool_args, ctx),
-                        timeout=_cfg().tool_timeout,
-                    )
-
+                    # Emit SSE result
                     if result.error:
                         job.publish(
                             SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": result.error, "tool": tool.id})
@@ -963,10 +992,6 @@ class SessionProcessor:
                             tool.id, tool_args, persist_output, self._mw_ctx,
                         )
 
-                    # NOTE: truncation is now handled in ToolDefinition.__call__
-                    # via truncate_output() which saves full output to file.
-                    # No second truncation here — the output is already trimmed.
-
                     # Phase 3: update to "completed" or "error"
                     async with session_factory() as db:
                         async with db.begin():
@@ -1014,28 +1039,6 @@ class SessionProcessor:
                                     sp.model_id = sp.agent.model.model_id
                             sp.rebuild_permissions_and_prompt()
                             logger.info("Agent switched to: %s", sp.agent.name)
-
-                except asyncio.TimeoutError:
-                    timeout_msg = f"Tool timed out after {_cfg().tool_timeout}s: {tool.id}"
-                    logger.warning(timeout_msg)
-                    job.publish(SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": timeout_msg}))
-                    await _update_tool_part_error(
-                        session_factory, tool_part_id, tool.id, call_id, tool_args, timeout_msg,
-                    )
-                    continue
-
-                except RejectedError as e:
-                    rejected_msg = f"Permission denied: {e.permission}"
-                    job.publish(SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": rejected_msg}))
-                    await _update_tool_part_error(
-                        session_factory, tool_part_id, tool.id, call_id, tool_args, rejected_msg,
-                    )
-                except Exception as e:
-                    logger.exception("Tool execution error: %s", tool.id)
-                    job.publish(SSEEvent(TOOL_ERROR, {"call_id": call_id, "error": str(e)}))
-                    await _update_tool_part_error(
-                        session_factory, tool_part_id, tool.id, call_id, tool_args, str(e),
-                    )
 
         # --- Cost tracking ---
         if self.usage_data and sp.model_info:

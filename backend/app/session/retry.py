@@ -15,12 +15,15 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-BASE_DELAY = 2.0  # seconds (matches OpenCode RETRY_INITIAL_DELAY)
+BASE_DELAY = 2.0  # seconds
 BACKOFF_FACTOR = 2
 MAX_DELAY = 30.0  # seconds
-MAX_RETRIES = 3
+MAX_RETRIES = 5  # Increased from 3 (Claude Code uses 10)
 
-# Context overflow keywords — NEVER retry these
+# Capacity overload (529) — retry for foreground, fail fast for background
+MAX_OVERLOAD_RETRIES = 3  # Separate limit for 529 to prevent amplification
+
+# Context overflow keywords — NEVER retry these (handled by reactive compact instead)
 _OVERFLOW_PATTERNS = [
     "context_length_exceeded",
     "maximum context length",
@@ -30,6 +33,23 @@ _OVERFLOW_PATTERNS = [
     "input too long",
 ]
 
+# Capacity overload patterns
+_OVERLOAD_PATTERNS = [
+    "529",
+    "overloaded",
+    "capacity",
+]
+
+
+def is_context_overflow(error: Exception) -> bool:
+    """Check if an error is a context length overflow.
+
+    These errors can be recovered from via reactive compaction
+    (inspired by Claude Code's reactive compact pattern).
+    """
+    error_str = str(error).lower()
+    return any(pattern in error_str for pattern in _OVERFLOW_PATTERNS)
+
 
 def is_auth_error(error: Exception) -> bool:
     """Check if an error is an authentication/authorization failure (401)."""
@@ -37,27 +57,37 @@ def is_auth_error(error: Exception) -> bool:
     return "401" in error_str or "unauthorized" in error_str or "authentication" in error_str
 
 
+def is_overload_error(error: Exception) -> bool:
+    """Check if an error is a capacity/overload error (529).
+
+    Inspired by Claude Code: overload errors should be retried for
+    foreground/interactive sessions but fail fast for background operations
+    (subagent tasks, compaction) to prevent amplifying load.
+    """
+    error_str = str(error).lower()
+    return any(pattern in error_str for pattern in _OVERLOAD_PATTERNS)
+
+
 def is_retryable(error: Exception) -> str | None:
     """Classify whether an error is retryable.
 
     Returns a human-readable reason string if retryable, None otherwise.
-    Better than OpenCode: explicit non-retryable classification for context overflow.
     """
     error_str = str(error).lower()
 
-    # Context overflow — NEVER retryable (would just fail again)
+    # Context overflow — NEVER retryable (handled by reactive compact)
     for pattern in _OVERFLOW_PATTERNS:
         if pattern in error_str:
             return None
 
-    # Rate limit
+    # Rate limit (429)
     if ("rate" in error_str and "limit" in error_str) or "429" in error_str:
         return "Rate limited"
     if "too_many_requests" in error_str:
         return "Rate limited"
 
-    # Provider overloaded
-    if "overloaded" in error_str:
+    # Provider overloaded (529) — retryable but with separate limit
+    if is_overload_error(error):
         return "Provider overloaded"
 
     # Server errors
@@ -71,6 +101,17 @@ def is_retryable(error: Exception) -> str | None:
             return "Network error"
 
     return None
+
+
+def max_retries_for_error(error: Exception) -> int:
+    """Return the appropriate max retry count for an error type.
+
+    Overload errors (529) get a lower retry limit (MAX_OVERLOAD_RETRIES)
+    to prevent amplifying server load. Other retryable errors use MAX_RETRIES.
+    """
+    if is_overload_error(error):
+        return MAX_OVERLOAD_RETRIES
+    return MAX_RETRIES
 
 
 def retry_delay(attempt: int, error: Exception | None = None) -> float:

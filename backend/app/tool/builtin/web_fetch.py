@@ -21,6 +21,10 @@ class WebFetchTool(ToolDefinition):
         return "web_fetch"
 
     @property
+    def is_concurrency_safe(self) -> bool:
+        return True
+
+    @property
     def description(self) -> str:
         return (
             "Fetch content from a URL and return it as readable markdown. "

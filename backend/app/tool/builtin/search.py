@@ -21,6 +21,10 @@ class SearchTool(ToolDefinition):
         return "search"
 
     @property
+    def is_concurrency_safe(self) -> bool:
+        return True
+
+    @property
     def description(self) -> str:
         return (
             "Full-text search across all workspace files. "

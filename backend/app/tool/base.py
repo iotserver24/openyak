@@ -62,6 +62,16 @@ class ToolDefinition(ABC):
     def description(self) -> str:
         """Human-readable description of what the tool does."""
 
+    @property
+    def is_concurrency_safe(self) -> bool:
+        """Whether this tool can run in parallel with other concurrent-safe tools.
+
+        Override to True for read-only tools (read, glob, grep, etc.).
+        Exclusive (False) tools run one at a time to avoid conflicts.
+        Inspired by Claude Code's StreamingToolExecutor concurrency model.
+        """
+        return False
+
     @abstractmethod
     def parameters_schema(self) -> dict[str, Any]:
         """Return JSON Schema for the tool's parameters."""

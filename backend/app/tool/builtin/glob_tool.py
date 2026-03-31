@@ -18,6 +18,10 @@ class GlobTool(ToolDefinition):
         return "glob"
 
     @property
+    def is_concurrency_safe(self) -> bool:
+        return True
+
+    @property
     def description(self) -> str:
         return (
             "Find files matching a glob pattern. "

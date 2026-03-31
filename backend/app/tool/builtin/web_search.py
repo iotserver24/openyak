@@ -24,6 +24,10 @@ class WebSearchTool(ToolDefinition):
         return "web_search"
 
     @property
+    def is_concurrency_safe(self) -> bool:
+        return True
+
+    @property
     def description(self) -> str:
         return (
             "Search the web for information. Returns search results with titles and URLs. "

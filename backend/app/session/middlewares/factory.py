@@ -19,6 +19,8 @@ from app.session.middleware import MiddlewareChain
 from app.session.middlewares.dangling_tool_call import DanglingToolCallMiddleware
 from app.session.middlewares.loop_detection import LoopDetectionMiddleware
 from app.session.middlewares.todo_reminder import TodoReminderMiddleware
+
+
 def build_middleware_chain(
     *,
     get_todos_fn: Callable[[], list[dict[str, Any]]] | None = None,

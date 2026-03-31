@@ -352,8 +352,11 @@ class SessionPrompt:
         from app.session.utils import sanitize_llm_messages_for_request as _sanitize_llm_messages_for_request
         from app.session.compaction import run_compaction, should_compact
         from app.session.manager import create_message as _create_message, get_message_history_for_llm
+        from app.session.microcompact import microcompact_messages, apply_tool_result_budget
 
         _hard_cap_final_done = False
+        _consecutive_compact_failures = 0
+        _MAX_CONSECUTIVE_COMPACT_FAILURES = 3
 
         while True:
             if self.job.abort_event.is_set():
@@ -426,6 +429,12 @@ class SessionPrompt:
                     else None
                 ),
             )
+
+            # --- Zero-cost context compression (inspired by Claude Code) ---
+            # Layer 1: Replace old tool outputs from specific tools with stubs
+            llm_messages = microcompact_messages(llm_messages)
+            # Layer 2: Enforce aggregate tool result size budget
+            llm_messages = apply_tool_result_budget(llm_messages)
 
             # Run middleware before_llm_call hook
             from app.session.middleware import MiddlewareContext
@@ -507,14 +516,33 @@ class SessionPrompt:
                             exc_info=True,
                         )
 
-                await run_compaction(
-                    self.job.session_id,
-                    job=self.job,
-                    session_factory=self.session_factory,
-                    provider_registry=self.provider_registry,
-                    agent_registry=self.agent_registry,
-                    model_id=self.model_id,
-                )
+                try:
+                    await run_compaction(
+                        self.job.session_id,
+                        job=self.job,
+                        session_factory=self.session_factory,
+                        provider_registry=self.provider_registry,
+                        agent_registry=self.agent_registry,
+                        model_id=self.model_id,
+                    )
+                    _consecutive_compact_failures = 0
+                except Exception:
+                    _consecutive_compact_failures += 1
+                    logger.warning(
+                        "Compaction failed (%d/%d) for session %s",
+                        _consecutive_compact_failures,
+                        _MAX_CONSECUTIVE_COMPACT_FAILURES,
+                        self.job.session_id,
+                        exc_info=True,
+                    )
+                    if _consecutive_compact_failures >= _MAX_CONSECUTIVE_COMPACT_FAILURES:
+                        self.job.publish(SSEEvent(AGENT_ERROR, {
+                            "error_message": (
+                                "Context compression failed repeatedly. "
+                                "Please start a new conversation."
+                            ),
+                        }))
+                        break
 
                 # Todo context recovery: after compaction the LLM may have
                 # lost awareness of outstanding todos (the original todo tool
