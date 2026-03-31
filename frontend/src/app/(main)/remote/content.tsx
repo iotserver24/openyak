@@ -129,7 +129,11 @@ export function RemoteTabContent() {
 
   const handleCopyUrl = () => {
     if (status?.tunnel_url) {
-      navigator.clipboard.writeText(`${status.tunnel_url}/m`);
+      const token = fullToken || status.token_preview;
+      const url = token
+        ? `${status.tunnel_url}/m?token=${encodeURIComponent(token)}`
+        : `${status.tunnel_url}/m`;
+      navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -182,7 +186,9 @@ export function RemoteTabContent() {
         <div className="space-y-3">
           {status.tunnel_url && (
             <div className="flex items-center gap-2">
-              <div className="flex-1 px-3 py-2 rounded-lg bg-[var(--surface-tertiary)] text-xs font-mono text-[var(--text-secondary)] truncate">{status.tunnel_url}/m</div>
+              <div className="flex-1 px-3 py-2 rounded-lg bg-[var(--surface-tertiary)] text-xs font-mono text-[var(--text-secondary)] truncate">
+                {status.tunnel_url}/m{fullToken ? `?token=${fullToken.slice(0, 12)}...` : ""}
+              </div>
               <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={handleCopyUrl}>
                 {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                 <span className="ml-1 text-xs">{copied ? t("remoteCopied") : t("remoteCopy")}</span>
@@ -202,13 +208,6 @@ export function RemoteTabContent() {
           {showQr && qrBlobUrl && (
             <div className="flex justify-center p-4 rounded-lg bg-white">
               <img src={qrBlobUrl} alt={t("remoteQrAlt")} className="w-48 h-48" style={{ imageRendering: "pixelated" }} />
-            </div>
-          )}
-
-          {fullToken && (
-            <div className="p-3 rounded-lg bg-[var(--surface-tertiary)] border border-[var(--border-default)]">
-              <p className="text-xs text-[var(--text-secondary)] mb-1">{t("remoteTokenLabel")}</p>
-              <code className="text-xs font-mono text-[var(--text-primary)] break-all select-all">{fullToken}</code>
             </div>
           )}
 

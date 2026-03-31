@@ -110,7 +110,8 @@ export const useChatStore = create<ChatStore>((set) => ({
       pendingPlanReview: null,
     }),
 
-  startGeneration: (streamId, sessionId) =>
+  startGeneration: (streamId, sessionId) => {
+    console.log("[chatStore] startGeneration called:", { streamId, sessionId });
     set({
       streamId,
       sessionId,
@@ -123,7 +124,8 @@ export const useChatStore = create<ChatStore>((set) => ({
       pendingPermission: null,
       pendingQuestion: null,
       pendingPlanReview: null,
-    }),
+    });
+  },
 
   appendTextDelta: (text) =>
     set((s) => ({ streamingText: s.streamingText + text })),

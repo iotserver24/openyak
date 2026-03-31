@@ -70,6 +70,10 @@ interface MessageListProps {
   streamingReasoning: string;
   /** Callback to edit a user message and re-generate from that point. */
   onEditAndResend?: (messageId: string, newText: string, attachments?: FileAttachment[]) => Promise<boolean>;
+  /** Workspace directory for @mention in edit mode. */
+  directory?: string | null;
+  /** Session ID for @mention file ingestion. */
+  sessionId?: string;
   /** Whether there are older messages to load. */
   hasPreviousPage?: boolean;
   /** Whether older messages are currently being fetched. */
@@ -89,6 +93,8 @@ export function MessageList({
   streamingText,
   streamingReasoning,
   onEditAndResend,
+  directory,
+  sessionId,
   hasPreviousPage,
   isFetchingPreviousPage,
   fetchPreviousPage,
@@ -321,6 +327,8 @@ export function MessageList({
                     isNew={newMessageIds.has(group.message.id)}
                     onEditAndResend={onEditAndResend}
                     isGenerating={isGenerating}
+                    directory={directory}
+                    sessionId={sessionId}
                   />
                 );
               }

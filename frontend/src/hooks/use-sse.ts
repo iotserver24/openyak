@@ -42,8 +42,7 @@ const PROGRESSIVE_BUFFER_INTERVAL_MS = 60;
 
 class ProgressiveBuffer {
   private pending = "";
-  private rafId: number | null = null;
-  private lastTickAt = 0;
+  private timerId: ReturnType<typeof setTimeout> | null = null;
   // Characters revealed per tick; larger + throttled interval = smoother and less CPU
   private charsPerFrame = 12;
   private threshold = 40;
@@ -56,13 +55,13 @@ class ProgressiveBuffer {
       return;
     }
     this.pending += text;
-    if (!this.rafId) this.tick();
+    if (!this.timerId) this.tick();
   }
 
   flush() {
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
+    if (this.timerId) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
     }
     if (this.pending) {
       this.appendFn(this.pending);
@@ -71,29 +70,22 @@ class ProgressiveBuffer {
   }
 
   dispose() {
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
+    if (this.timerId) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
     }
     this.pending = "";
   }
 
   private tick = () => {
     if (!this.pending) {
-      this.rafId = null;
+      this.timerId = null;
       return;
     }
-    const now = performance.now();
-    const elapsed = now - this.lastTickAt;
-    if (elapsed < PROGRESSIVE_BUFFER_INTERVAL_MS && this.lastTickAt > 0) {
-      this.rafId = requestAnimationFrame(this.tick);
-      return;
-    }
-    this.lastTickAt = now;
     const chunk = this.pending.slice(0, this.charsPerFrame);
     this.pending = this.pending.slice(this.charsPerFrame);
     this.appendFn(chunk);
-    this.rafId = requestAnimationFrame(this.tick);
+    this.timerId = setTimeout(this.tick, PROGRESSIVE_BUFFER_INTERVAL_MS);
   };
 }
 
@@ -133,6 +125,8 @@ export function useSSE(streamId: string | null) {
       });
       reasoningBufferRef.current = reasoningBuffer;
 
+      console.log("[SSE] Creating SSEClient for stream:", streamId, "lastEventId:", persistedLastEventId);
+
       const client = new SSEClient({
         url: API.CHAT.STREAM(streamId),
         // Re-resolve URL on each reconnect so port changes (backend restart) are picked up
@@ -140,8 +134,10 @@ export function useSSE(streamId: string | null) {
         initialLastEventId: persistedLastEventId,
         onEvent: () => {
           lastEventTimestamp = Date.now();
+          console.log("[SSE] Event received at", Date.now());
         },
         onStatusChange: (status) => {
+          console.log("[SSE] Status changed:", status);
           connectionStore.getState().setStatus(status);
           if (status === "disconnected") {
             // Connection permanently lost — clean up streaming state.
@@ -418,12 +414,14 @@ export function useSSE(streamId: string | null) {
     // Interactive: Question
     client.on(SSE_EVENTS.QUESTION, (data, id) => {
       persistedLastEventId = id;
+      console.log("[SSE] QUESTION event received:", { call_id: data.call_id, id, hasArgs: !!data.arguments });
       if (data.call_id) {
         store.getState().setQuestion({
           callId: data.call_id,
           tool: data.tool ?? "question",
           arguments: data.arguments ?? { question: data.question, options: data.options, questions: data.questions },
         });
+        console.log("[SSE] pendingQuestion set:", store.getState().pendingQuestion?.callId);
       }
     });
 
@@ -681,24 +679,36 @@ export function useSSE(streamId: string | null) {
       // Visibility-aware SSE management.
       // Mobile (remote mode): pause SSE when hidden to save battery; resume on visible.
       // Desktop: just check health on visible (don't close the connection).
+      let mobilePauseTimer: ReturnType<typeof setTimeout> | null = null;
       const handleVisibilityChange = () => {
         if (!clientRef.current || !store.getState().isGenerating) return;
 
         if (document.visibilityState === "visible") {
-          // Came back — resume if paused and check health immediately.
+          // Came back — cancel pending pause and resume immediately.
+          if (mobilePauseTimer) {
+            clearTimeout(mobilePauseTimer);
+            mobilePauseTimer = null;
+          }
           clientRef.current.resumeReconnect();
           clientRef.current.checkHealth();
         } else if (isRemoteMode()) {
-          // Mobile hidden — pause reconnection to save battery.
-          // pauseReconnect() closes the EventSource, so only do this in
-          // remote mode where battery matters more than background updates.
-          clientRef.current.pauseReconnect();
+          // Mobile hidden — delay pause by 30s to keep streaming alive
+          // during brief app switches. If the user returns within 30s,
+          // the timer is cancelled and the SSE connection stays open.
+          mobilePauseTimer = setTimeout(() => {
+            clientRef.current?.pauseReconnect();
+            mobilePauseTimer = null;
+          }, 30_000);
         }
       };
       document.addEventListener("visibilitychange", handleVisibilityChange);
 
       cleanup = () => {
         clearInterval(idleCheckTimer);
+        if (mobilePauseTimer) {
+          clearTimeout(mobilePauseTimer);
+          mobilePauseTimer = null;
+        }
         document.removeEventListener("visibilitychange", handleVisibilityChange);
         unlistenRestarting?.();
         unlistenRestarted?.();

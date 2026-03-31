@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { API } from "@/lib/constants";
 import { artifactTypeFromExtension, languageFromExtension } from "@/lib/artifacts";
+import { useWorkspaceStore } from "@/stores/workspace-store";
 import { CodeRenderer } from "./code-renderer";
 import { MarkdownRenderer } from "./markdown-renderer";
 import { HtmlRenderer } from "./html-renderer";
@@ -40,6 +41,7 @@ export function FilePreviewRenderer({ filePath, content: initialContent, languag
   // Check if this is a binary format that handles its own fetching
   const artifactType = filePath ? artifactTypeFromExtension(filePath) : null;
   const isBinary = artifactType === "docx" || artifactType === "xlsx" || artifactType === "pdf" || artifactType === "pptx";
+  const workspace = useWorkspaceStore((s) => s.activeWorkspacePath);
 
   const [content, setContent] = useState<string | null>(initialContent ?? null);
   const [loading, setLoading] = useState(!isBinary && !initialContent && !!filePath);
@@ -52,12 +54,15 @@ export function FilePreviewRenderer({ filePath, content: initialContent, languag
     setLoading(true);
     setError(null);
 
+    console.log("[FilePreview] Fetching:", { filePath, workspace });
     api
-      .post<{ content: string }>(API.FILES.CONTENT, { path: filePath })
+      .post<{ content: string }>(API.FILES.CONTENT, { path: filePath, workspace })
       .then((res) => {
+        console.log("[FilePreview] Loaded:", res.content?.length, "chars");
         setContent(res.content);
       })
       .catch((err) => {
+        console.error("[FilePreview] Error:", err);
         setError(err.message || "Failed to load file");
       })
       .finally(() => {

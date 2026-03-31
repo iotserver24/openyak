@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { API, queryKeys } from "@/lib/constants";
 import { browseDirectory } from "@/lib/upload";
+import { isRemoteMode } from "@/lib/remote-connection";
+import { MobileDirectoryBrowser } from "@/components/mobile/directory-browser";
 import { cn } from "@/lib/utils";
 
 interface WorkspaceToggleProps {
@@ -34,6 +36,8 @@ export function WorkspaceToggle({ sessionId, directory, isIndexing }: WorkspaceT
   const { t } = useTranslation("chat");
   const queryClient = useQueryClient();
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [browsingDirs, setBrowsingDirs] = useState(false);
+  const remote = isRemoteMode();
 
   // For new chats (no sessionId), use global settings store
   const globalWorkspace = useSettingsStore((s) => s.workspaceDirectory);
@@ -43,26 +47,35 @@ export function WorkspaceToggle({ sessionId, directory, isIndexing }: WorkspaceT
   const currentPath = sessionId ? directory : globalWorkspace;
   const displayName = getDisplayName(currentPath);
 
+  // Handle directory selection from either native picker (desktop) or mobile browser
+  const applySelectedPath = useCallback(async (path: string) => {
+    if (sessionId) {
+      await api.patch(API.SESSIONS.DETAIL(sessionId), { directory: path });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sessions.detail(sessionId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+    } else {
+      setGlobalWorkspace(path);
+    }
+    setPopoverOpen(false);
+  }, [sessionId, queryClient, setGlobalWorkspace]);
+
   const handleBrowse = useCallback(async () => {
+    if (remote) {
+      // Remote mode: use directory browser instead of native OS dialog
+      setBrowsingDirs(true);
+      setPopoverOpen(false);
+      return;
+    }
     try {
       const path = await browseDirectory(t("workspaceSet"));
       if (path) {
-        if (sessionId) {
-          // Persist to the current session only — don't pollute the global default
-          await api.patch(API.SESSIONS.DETAIL(sessionId), { directory: path });
-          queryClient.invalidateQueries({ queryKey: queryKeys.sessions.detail(sessionId) });
-          queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
-        } else {
-          // New chat: update the global default (used until session is created)
-          setGlobalWorkspace(path);
-        }
-        setPopoverOpen(false);
+        await applySelectedPath(path);
       }
     } catch (err) {
       console.error("Failed to browse directory:", err);
       toast.error("Failed to open folder picker");
     }
-  }, [sessionId, t, queryClient, setGlobalWorkspace]);
+  }, [remote, t, applySelectedPath]);
 
   const handleClear = useCallback(async () => {
     if (sessionId) {
@@ -76,6 +89,7 @@ export function WorkspaceToggle({ sessionId, directory, isIndexing }: WorkspaceT
   }, [sessionId, queryClient, setGlobalWorkspace]);
 
   return (
+    <>
     <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
       <PopoverTrigger asChild>
         <button
@@ -119,5 +133,14 @@ export function WorkspaceToggle({ sessionId, directory, isIndexing }: WorkspaceT
         </div>
       </PopoverContent>
     </Popover>
+    {remote && (
+      <MobileDirectoryBrowser
+        open={browsingDirs}
+        onClose={() => setBrowsingDirs(false)}
+        onSelect={(path) => void applySelectedPath(path)}
+        initialPath={currentPath}
+      />
+    )}
+    </>
   );
 }

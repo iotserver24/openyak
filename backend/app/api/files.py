@@ -403,6 +403,7 @@ def _file_metadata(path: Path, *, source: str, content_hash: str | None = None) 
 
 class FileContentRequest(BaseModel):
     path: str
+    workspace: str | None = None  # Resolve relative paths against this directory
 
 
 @router.post("/files/content")
@@ -411,6 +412,9 @@ async def get_file_content(body: FileContentRequest) -> dict[str, Any]:
     from fastapi import HTTPException
 
     file_path = Path(body.path)
+    # Resolve relative paths against workspace directory
+    if not file_path.is_absolute() and body.workspace:
+        file_path = Path(body.workspace) / file_path
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {body.path}")
     if not file_path.is_file():
@@ -441,6 +445,8 @@ async def get_file_content_binary(body: FileContentRequest) -> dict[str, Any]:
     from fastapi import HTTPException
 
     file_path = Path(body.path)
+    if not file_path.is_absolute() and body.workspace:
+        file_path = Path(body.workspace) / file_path
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {body.path}")
     if not file_path.is_file():
@@ -491,6 +497,45 @@ async def browse_directory(body: BrowseDirectoryRequest | None = None) -> dict[s
     req = body or BrowseDirectoryRequest()
     path = await _open_native_directory_dialog(title=req.title)
     return {"path": path}
+
+
+class ListDirectoryRequest(BaseModel):
+    path: str | None = None  # None = user home directory
+
+
+@router.post("/files/list-directory")
+async def list_directory(body: ListDirectoryRequest | None = None) -> dict[str, Any]:
+    """List subdirectories of a given path for remote directory browsing.
+
+    Returns the resolved parent path and a list of child directories.
+    Hidden directories (starting with .) are excluded by default.
+    """
+    req = body or ListDirectoryRequest()
+    target = Path(req.path) if req.path else Path.home()
+    target = target.resolve()
+
+    if not target.is_dir():
+        return {"path": str(target), "parent": str(target.parent), "dirs": []}
+
+    dirs: list[dict[str, str]] = []
+    try:
+        with os.scandir(target) as entries:
+            for entry in entries:
+                try:
+                    if entry.is_dir() and not entry.name.startswith("."):
+                        dirs.append({"name": entry.name, "path": entry.path})
+                except (PermissionError, OSError):
+                    continue
+    except (PermissionError, OSError):
+        pass
+
+    dirs.sort(key=lambda d: d["name"].lower())
+
+    return {
+        "path": str(target),
+        "parent": str(target.parent) if target.parent != target else None,
+        "dirs": dirs,
+    }
 
 
 @router.post("/files/browse")

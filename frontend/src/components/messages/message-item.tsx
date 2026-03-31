@@ -13,9 +13,13 @@ interface MessageItemProps {
   isGenerating?: boolean;
   /** Whether this message just arrived (animate) or was loaded from history (skip animation). */
   isNew?: boolean;
+  /** Workspace directory for @mention file search in edit mode. */
+  directory?: string | null;
+  /** Session ID for file ingestion in edit mode. */
+  sessionId?: string;
 }
 
-export const MessageItem = memo(function MessageItem({ message, onRegenerate, onEditAndResend, isGenerating, isNew = true }: MessageItemProps) {
+export const MessageItem = memo(function MessageItem({ message, onRegenerate, onEditAndResend, isGenerating, isNew = true, directory, sessionId }: MessageItemProps) {
   const role = (message.data as { role: string }).role;
 
   return (
@@ -27,6 +31,8 @@ export const MessageItem = memo(function MessageItem({ message, onRegenerate, on
             isNew={isNew}
             onEditAndResend={onEditAndResend}
             isGenerating={isGenerating}
+            directory={directory}
+            sessionId={sessionId}
           />
         ) : (
           <AssistantMessage message={message} onRegenerate={onRegenerate} isNew={isNew} />

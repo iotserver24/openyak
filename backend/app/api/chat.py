@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -161,7 +162,7 @@ async def edit_and_resend(
     return PromptResponse(stream_id=stream_id, session_id=body.session_id)
 
 
-@router.get("/chat/stream/{stream_id}")
+@router.api_route("/chat/stream/{stream_id}", methods=["GET", "POST"])
 async def stream_events(sm: StreamManagerDep, stream_id: str, last_event_id: int = 0):
     """SSE endpoint. Supports reconnect via ?last_event_id=N.
 
@@ -184,7 +185,15 @@ async def stream_events(sm: StreamManagerDep, stream_id: str, last_event_id: int
 
     queue = job.subscribe(last_event_id=last_event_id)
 
+    # Padding to push SSE data past Cloudflare tunnel's response buffer.
+    # Without this, small SSE chunks are held by the tunnel and never
+    # delivered to the client until enough data accumulates (~4KB).
+    _SSE_PADDING = ": " + "x" * 4096 + "\n\n"
+
     async def event_generator():
+        # Send padding first to flush the tunnel buffer
+        yield _SSE_PADDING
+
         done_sent = False
         try:
             while True:
@@ -230,7 +239,7 @@ async def abort_generation(sm: StreamManagerDep, body: AbortRequest) -> dict:
 
 
 @router.get("/chat/active")
-async def list_active(sm: StreamManagerDep) -> list[dict[str, str]]:
+async def list_active(sm: StreamManagerDep) -> list[dict[str, Any]]:
     """List active generation jobs."""
     return sm.active_jobs()
 

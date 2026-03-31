@@ -47,6 +47,7 @@ export interface SSEClientOptions {
 
 export class SSEClient {
   private eventSource: EventSource | null = null;
+  private abortController: AbortController | null = null;
   private handlers = new Map<string, SSEEventHandler[]>();
   private lastEventId = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -100,6 +101,8 @@ export class SSEClient {
       this.eventSource.close();
       this.eventSource = null;
     }
+    this.abortController?.abort();
+    this.abortController = null;
   }
 
   /** Check if the connection is still alive. If dead, trigger reconnect.
@@ -127,6 +130,8 @@ export class SSEClient {
       this.eventSource.close();
       this.eventSource = null;
     }
+    this.abortController?.abort();
+    this.abortController = null;
   }
 
   /** Resume and immediately attempt to reconnect. */
@@ -145,6 +150,8 @@ export class SSEClient {
       this.eventSource.close();
       this.eventSource = null;
     }
+    this.abortController?.abort();
+    this.abortController = null;
 
     // Resolve URL dynamically — picks up new backend port after restart
     const baseUrl = this.options.urlProvider?.() ?? this.options.url;
@@ -156,45 +163,131 @@ export class SSEClient {
     const qs = params.toString();
     const url = qs ? `${baseUrl}?${qs}` : baseUrl;
 
-    const es = new EventSource(url);
+    // Cloudflare Quick Tunnels buffer GET SSE responses until the connection
+    // closes, breaking real-time streaming. POST SSE works correctly.
+    // Use fetch+ReadableStream for remote (POST), EventSource for local (GET).
+    if (remoteToken) {
+      this.doConnectFetch(url);
+    } else {
+      this.doConnectEventSource(url);
+    }
+  }
 
-    // Register all event listeners BEFORE the connection opens
-    // to avoid missing any early events
-    for (const eventType of this.handlers.keys()) {
-      es.addEventListener(eventType, (e: Event) => {
-        // `error` is special in EventSource: transport failures also dispatch a
-        // native error Event (without `.data`). Ignore those here; they are
-        // handled by `es.onerror` below.
-        if (!(e instanceof MessageEvent)) {
-          return;
+  /** Dispatch a parsed SSE event to registered handlers. */
+  private dispatchEvent(eventType: string, data: string, id: string): void {
+    if (id) {
+      this.lastEventId = parseInt(id, 10);
+    }
+
+    this.nativeReconnectCount = 0;
+    this.lastEventTime = Date.now();
+    this.resetHeartbeat();
+    this.options.onEvent?.();
+
+    let parsed: SSEEventData;
+    try {
+      parsed = JSON.parse(data) as SSEEventData;
+    } catch {
+      parsed = {} as SSEEventData;
+    }
+
+    const handlers = this.handlers.get(eventType) ?? [];
+    for (const handler of handlers) {
+      handler(parsed, this.lastEventId);
+    }
+  }
+
+  /**
+   * Connect via fetch POST + ReadableStream.
+   * Used for remote/tunnel connections where GET SSE is buffered.
+   */
+  private doConnectFetch(url: string): void {
+    const controller = new AbortController();
+    this.abortController = controller;
+
+    this.options.onStatusChange?.("connecting");
+
+    fetch(url, {
+      method: "POST",
+      headers: { "Accept": "text/event-stream" },
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok || !res.body) {
+          throw new Error(`SSE fetch failed: ${res.status}`);
         }
 
-        this.nativeReconnectCount = 0;
+        this.retryCount = 0;
         this.lastEventTime = Date.now();
         this.resetHeartbeat();
-        this.options.onEvent?.();
+        this.options.onStatusChange?.("connected");
 
-        // Track event ID for reconnection
-        if (e.lastEventId) {
-          this.lastEventId = parseInt(e.lastEventId, 10);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        // SSE parser state
+        let currentEvent = "";
+        let currentData = "";
+        let currentId = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (this.closed) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // Parse SSE protocol: split on double newlines
+          const parts = buffer.split("\n");
+          buffer = parts.pop() ?? ""; // keep incomplete line
+
+          for (const line of parts) {
+            if (line === "") {
+              // Empty line = end of event
+              if (currentEvent && currentData) {
+                this.dispatchEvent(currentEvent, currentData, currentId);
+              }
+              currentEvent = "";
+              currentData = "";
+              currentId = "";
+            } else if (line.startsWith("event: ")) {
+              currentEvent = line.slice(7);
+            } else if (line.startsWith("data: ")) {
+              currentData = line.slice(6);
+            } else if (line.startsWith("id: ")) {
+              currentId = line.slice(4);
+            }
+            // Ignore comments (lines starting with ':')
+          }
         }
 
-        let data: SSEEventData;
-        try {
-          data = JSON.parse(e.data) as SSEEventData;
-        } catch {
-          data = {} as SSEEventData;
+        // Stream ended normally
+        if (!this.closed) {
+          this.scheduleReconnect();
         }
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        this.options.onError?.(err);
+        if (!this.closed) {
+          this.scheduleReconnect();
+        }
+      });
+  }
 
-        const handlers = this.handlers.get(eventType) ?? [];
-        for (const handler of handlers) {
-          handler(data, this.lastEventId);
-        }
+  /** Connect via native EventSource (GET). Used for local/desktop connections. */
+  private doConnectEventSource(url: string): void {
+    const es = new EventSource(url);
+
+    for (const eventType of this.handlers.keys()) {
+      es.addEventListener(eventType, (e: Event) => {
+        if (!(e instanceof MessageEvent)) return;
+        this.dispatchEvent(eventType, e.data, e.lastEventId);
       });
     }
 
     es.onopen = () => {
-      this.retryCount = 0; // Reset on successful connection
+      this.retryCount = 0;
       this.nativeReconnectCount = 0;
       this.lastEventTime = Date.now();
       this.resetHeartbeat();
@@ -207,16 +300,10 @@ export class SSEClient {
       if (this.closed) return;
 
       if (es.readyState === EventSource.CLOSED) {
-        // Permanently closed — use custom reconnect
         this.scheduleReconnect();
       } else if (es.readyState === EventSource.CONNECTING) {
-        // Native auto-reconnect in progress. Track consecutive attempts
-        // so we can detect silent failures (e.g., server cleaned up the job).
         this.nativeReconnectCount++;
         if (this.nativeReconnectCount > SSEClient.MAX_NATIVE_RECONNECTS) {
-          // Too many native reconnects without receiving an event.
-          // Take over with custom reconnect logic (has retry limits
-          // and will eventually fire the "disconnected" callback).
           es.close();
           this.scheduleReconnect();
         }

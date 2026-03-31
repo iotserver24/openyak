@@ -134,6 +134,7 @@ export const API = {
     UPLOAD: "/api/files/upload",
     BROWSE: "/api/files/browse",
     BROWSE_DIRECTORY: "/api/files/browse-directory",
+    LIST_DIRECTORY: "/api/files/list-directory",
     ATTACH: "/api/files/attach",
     CONTENT: "/api/files/content",
     CONTENT_BINARY: "/api/files/content-binary",

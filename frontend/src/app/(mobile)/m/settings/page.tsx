@@ -12,6 +12,7 @@ import {
   saveRemoteConfig,
   clearRemoteConfig,
   parseQRData,
+  autoConnectFromUrl,
   isRemoteMode,
   getRemoteProvider,
   saveRemoteProvider,
@@ -42,6 +43,9 @@ export default function MobileSettingsPage() {
   const [allModels, setAllModels] = useState<ModelInfo[]>([]);
 
   useEffect(() => {
+    // Auto-connect from URL token (e.g., pasted link)
+    autoConnectFromUrl();
+
     const existing = getRemoteConfig();
     if (existing) {
       setConfig(existing);

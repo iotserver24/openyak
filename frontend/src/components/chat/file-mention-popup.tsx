@@ -11,6 +11,8 @@ interface FileMentionPopupProps {
   onSelect: (result: FileSearchResult) => void;
   onClose: () => void;
   visible: boolean;
+  /** Show popup below instead of above. Use for messages near the top of the viewport. */
+  position?: "above" | "below";
 }
 
 export function FileMentionPopup({
@@ -19,6 +21,7 @@ export function FileMentionPopup({
   onSelect,
   onClose,
   visible,
+  position = "above",
 }: FileMentionPopupProps) {
   const [results, setResults] = useState<FileSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,7 +104,7 @@ export function FileMentionPopup({
   if (!visible) return null;
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-1 z-50">
+    <div className={`absolute left-0 right-0 z-50 ${position === "below" ? "top-full mt-1" : "bottom-full mb-1"}`}>
       <div className="mx-4 rounded-xl border border-[var(--border-default)] bg-[var(--surface-primary)] shadow-[var(--shadow-md)] overflow-hidden">
         {/* Header */}
         <div className="px-3 py-2 border-b border-[var(--border-default)]">

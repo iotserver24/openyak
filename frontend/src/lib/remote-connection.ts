@@ -75,6 +75,38 @@ export function saveRemoteProvider(provider: RemoteProvider): void {
  * - URL format (from backend QR): "https://xxx.trycloudflare.com/m?token=openyak_rt_..."
  * - JSON format (legacy): {"url":"https://...","token":"openyak_rt_..."}
  */
+/**
+ * Auto-connect from URL query params (e.g., ?token=openyak_rt_...).
+ * Called on mobile page load to enable direct link sharing.
+ * Returns true if a new connection was established.
+ */
+export function autoConnectFromUrl(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (!token) return false;
+
+    // Derive the tunnel URL from the current page origin
+    const url = window.location.origin;
+
+    // Only save if not already connected to this exact config
+    const existing = getRemoteConfig();
+    if (existing?.url === url && existing?.token === token) return false;
+
+    saveRemoteConfig({ url, token });
+
+    // Clean up URL to remove token from address bar
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("token");
+    window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.search);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function parseQRData(data: string): RemoteConfig | null {
   // Try URL format first (backend encodes: {tunnel_url}/m?token={token})
   try {

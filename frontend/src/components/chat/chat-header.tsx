@@ -115,19 +115,17 @@ export function ChatHeader({ sessionId }: ChatHeaderProps) {
   return (
     <TooltipProvider delayDuration={200}>
       <header className="flex h-13 items-center gap-1 px-3 bg-[var(--surface-primary)]/80 backdrop-blur-sm">
-        {/* Remote mode: back + task list buttons */}
+        {/* Remote mode: task list button */}
         {remote && (
-          <>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-              onClick={() => router.push("/m")}
-              aria-label="Back"
-            >
-              <ArrowLeft className="h-[18px] w-[18px]" />
-            </Button>
-          </>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            onClick={() => router.push("/m")}
+            aria-label="Task list"
+          >
+            <List className="h-[18px] w-[18px]" />
+          </Button>
         )}
 
         {/* Desktop mode: Sidebar toggle + new chat — visible when sidebar is collapsed */}
@@ -181,33 +179,11 @@ export function ChatHeader({ sessionId }: ChatHeaderProps) {
           </Tooltip>
         )}
 
-        {/* Remote mode: stream status + abort, or task list button */}
+        {/* Remote mode: stream status, or task list button */}
         {remote && streamStatus && (
-          <>
-            <span className="text-[12px] text-[var(--text-tertiary)] animate-pulse whitespace-nowrap">
-              {streamStatus}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-              onClick={handleAbort}
-              aria-label="Stop generation"
-            >
-              <Square className="h-3.5 w-3.5 fill-current" />
-            </Button>
-          </>
-        )}
-        {remote && !streamStatus && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9"
-            onClick={() => router.push("/m")}
-            aria-label="Task list"
-          >
-            <List className="h-[18px] w-[18px] text-[var(--text-secondary)]" />
-          </Button>
+          <span className="text-[12px] text-[var(--text-tertiary)] animate-pulse whitespace-nowrap">
+            {streamStatus}
+          </span>
         )}
 
         {/* Context usage indicator — desktop only */}

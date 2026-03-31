@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import type { Artifact } from "@/types/artifact";
-import { ARTIFACT_PANEL_WIDTH } from "@/lib/constants";
+import { ARTIFACT_PANEL_WIDTH, SIDEBAR_WIDTH } from "@/lib/constants";
 
 interface ArtifactStore {
   /** Whether the artifact panel is open. */
@@ -66,6 +66,20 @@ export const useArtifactStore = create<ArtifactStore>((set, get) => ({
       usePlanReviewStore.getState().close();
     } catch {
       // Plan review store may not be available during SSR
+    }
+
+    // Auto-size panel: 40% when sidebar is open, 50% when collapsed
+    if (typeof window !== "undefined" && !get().isOpen) {
+      try {
+        const { useSidebarStore } = require("@/stores/sidebar-store");
+        const sidebarOpen = !useSidebarStore.getState().isCollapsed;
+        const availableWidth = window.innerWidth - (sidebarOpen ? SIDEBAR_WIDTH : 0);
+        const targetRatio = sidebarOpen ? 0.4 : 0.5;
+        const newWidth = Math.max(360, Math.round(availableWidth * targetRatio));
+        set({ panelWidth: newWidth });
+      } catch {
+        // Sidebar store may not be available
+      }
     }
 
     const state = get();

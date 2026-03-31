@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUp, Loader2, Paperclip, Camera, X, ChevronDown } from "lucide-react";
+import { ArrowLeft, ArrowUp, Loader2, Paperclip, Camera, X, ChevronDown, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { API } from "@/lib/constants";
 import { isRemoteMode, getRemoteConfig } from "@/lib/remote-connection";
 import { useProviderModels } from "@/hooks/use-provider-models";
 import { useSettingsStore } from "@/stores/settings-store";
+import { MobileDirectoryBrowser } from "@/components/mobile/directory-browser";
 
 /**
  * Mobile new task page.
@@ -24,6 +25,11 @@ export default function MobileNewTaskPage() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [browsingDirs, setBrowsingDirs] = useState(false);
+
+  // Workspace directory — read from settings store (persisted in localStorage)
+  const workspaceDirectory = useSettingsStore((s) => s.workspaceDirectory);
+  const setWorkspaceDirectory = useSettingsStore((s) => s.setWorkspaceDirectory);
 
   // Read model state from Zustand (synced by layout)
   const { data: models, isLoading: loadingModels } = useProviderModels();
@@ -96,6 +102,7 @@ export default function MobileNewTaskPage() {
           model: selectedModel || null,
           provider_id: useSettingsStore.getState().selectedProviderId || null,
           attachments,
+          workspace: workspaceDirectory || null,
         },
       );
 
@@ -105,7 +112,7 @@ export default function MobileNewTaskPage() {
       toast.error("Failed to send task. Check your connection.");
       setSending(false);
     }
-  }, [text, sending, files, selectedModel, router]);
+  }, [text, sending, files, selectedModel, workspaceDirectory, router]);
 
   // Current model name for display
   const currentModelName = models.find((m) => m.id === selectedModel)?.name;
@@ -146,6 +153,37 @@ export default function MobileNewTaskPage() {
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-tertiary)] pointer-events-none" />
         </div>
+
+        {/* Workspace selector */}
+        <button
+          onClick={() => setBrowsingDirs(true)}
+          className="w-full flex items-center gap-2.5 px-3 py-2 mb-4 rounded-full bg-[var(--surface-secondary)] border border-[var(--border-default)] active:scale-[0.98] transition-transform"
+        >
+          <FolderOpen className="w-4 h-4 text-[var(--text-tertiary)] shrink-0" />
+          <span className={`flex-1 text-left text-[15px] truncate ${workspaceDirectory ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-tertiary)]"}`}>
+            {workspaceDirectory
+              ? workspaceDirectory.replace(/^\/Users\/[^/]+/, "~").replace(/^\/home\/[^/]+/, "~")
+              : "No workspace (full access)"}
+          </span>
+          {workspaceDirectory && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setWorkspaceDirectory(null);
+              }}
+              className="h-6 w-6 flex items-center justify-center rounded-full hover:bg-[var(--surface-tertiary)]"
+            >
+              <X className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
+            </button>
+          )}
+        </button>
+
+        <MobileDirectoryBrowser
+          open={browsingDirs}
+          onClose={() => setBrowsingDirs(false)}
+          onSelect={setWorkspaceDirectory}
+          initialPath={workspaceDirectory}
+        />
 
         {/* Attached files */}
         {files.length > 0 && (

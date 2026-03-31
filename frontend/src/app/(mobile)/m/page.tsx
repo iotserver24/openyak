@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { SquarePen, Settings, Loader2, ChevronRight, Inbox } from "lucide-react";
+import { SquarePen, Settings, Loader2, ChevronRight, Inbox, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { API } from "@/lib/constants";
-import { isRemoteMode } from "@/lib/remote-connection";
+import { isRemoteMode, autoConnectFromUrl } from "@/lib/remote-connection";
 import { useRemoteHealth, type RemoteHealthStatus } from "@/hooks/use-remote-health";
 import { PullToRefresh } from "@/components/mobile/pull-to-refresh";
 import type { SessionResponse } from "@/types/session";
@@ -54,16 +54,18 @@ export default function MobileTaskListPage() {
   const healthStatus = useRemoteHealth();
   const [sessions, setSessions] = useState<SessionResponse[]>([]);
   const [activeSessionIds, setActiveSessionIds] = useState<Set<string>>(new Set());
+  const [needsInputIds, setNeedsInputIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   const loadSessions = useCallback(async () => {
     try {
       const [data, active] = await Promise.all([
         api.get<SessionResponse[]>(API.SESSIONS.LIST(30, 0)),
-        api.get<{ stream_id: string; session_id: string }[]>(API.CHAT.ACTIVE).catch(() => []),
+        api.get<{ stream_id: string; session_id: string; needs_input?: boolean }[]>(API.CHAT.ACTIVE).catch(() => []),
       ]);
       setSessions(data);
       setActiveSessionIds(new Set(active.map((j) => j.session_id)));
+      setNeedsInputIds(new Set(active.filter((j) => j.needs_input).map((j) => j.session_id)));
     } catch (err) {
       console.error("Failed to load sessions:", err);
       toast.error("Failed to load tasks");
@@ -73,12 +75,20 @@ export default function MobileTaskListPage() {
   }, []);
 
   useEffect(() => {
+    autoConnectFromUrl(); // Auto-save token from URL if present
     if (!isRemoteMode()) {
       router.replace("/m/settings");
       return;
     }
     loadSessions();
   }, [router, loadSessions]);
+
+  // Auto-poll when there are active sessions so badges update without pull-to-refresh
+  useEffect(() => {
+    if (activeSessionIds.size === 0) return;
+    const timer = setInterval(loadSessions, 10_000);
+    return () => clearInterval(timer);
+  }, [activeSessionIds.size, loadSessions]);
 
   const handleRefresh = useCallback(async () => {
     await loadSessions();
@@ -143,12 +153,17 @@ export default function MobileTaskListPage() {
                       <p className="text-[15px] font-medium truncate leading-tight">
                         {session.title || "Untitled task"}
                       </p>
-                      {activeSessionIds.has(session.id) && (
+                      {needsInputIds.has(session.id) ? (
+                        <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-medium">
+                          <MessageCircle className="w-2.5 h-2.5" />
+                          Needs input
+                        </span>
+                      ) : activeSessionIds.has(session.id) ? (
                         <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-medium">
                           <Loader2 className="w-2.5 h-2.5 animate-spin" />
                           Running
                         </span>
-                      )}
+                      ) : null}
                     </div>
                     <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5">
                       {timeAgo(session.time_updated)}

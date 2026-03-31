@@ -5,10 +5,28 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Copy, Pencil, Check, Plus, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { FileChip } from "@/components/chat/file-chip";
-import { uploadFile, browseFiles } from "@/lib/upload";
+import { FileMentionPopup } from "@/components/chat/file-mention-popup";
+import { uploadFile, browseFiles, attachByPath, ingestFiles } from "@/lib/upload";
+import type { FileSearchResult } from "@/lib/upload";
 import type { FileAttachment } from "@/types/chat";
 import { extractTextFromPartResponses } from "@/lib/utils";
 import type { MessageResponse, FilePart as FilePartType } from "@/types/message";
+
+/**
+ * Find the active @mention trigger in the input text relative to the cursor position.
+ */
+function detectMention(
+  text: string,
+  cursorPos: number,
+): { active: true; query: string; startIndex: number } | { active: false } {
+  const before = text.slice(0, cursorPos);
+  const atIndex = before.lastIndexOf("@");
+  if (atIndex === -1) return { active: false };
+  if (atIndex > 0 && !/\s/.test(before[atIndex - 1])) return { active: false };
+  const query = before.slice(atIndex + 1);
+  if (/[\s]/.test(query)) return { active: false };
+  return { active: true, query, startIndex: atIndex };
+}
 
 interface UserMessageProps {
   message: MessageResponse;
@@ -18,9 +36,13 @@ interface UserMessageProps {
   onEditAndResend?: (messageId: string, newText: string, attachments?: FileAttachment[]) => Promise<boolean>;
   /** Whether a generation is currently active (disables edit). */
   isGenerating?: boolean;
+  /** Workspace directory for @mention file search. */
+  directory?: string | null;
+  /** Session ID for file ingestion. */
+  sessionId?: string;
 }
 
-export function UserMessage({ message, isNew = true, onEditAndResend, isGenerating }: UserMessageProps) {
+export function UserMessage({ message, isNew = true, onEditAndResend, isGenerating, directory, sessionId }: UserMessageProps) {
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
@@ -29,6 +51,12 @@ export function UserMessage({ message, isNew = true, onEditAndResend, isGenerati
   const [uploading, setUploading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // @mention state
+  const [mentionActive, setMentionActive] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const hasWorkspace = !!directory && directory !== ".";
 
   const fileParts = message.parts
     .filter((p) => p.data.type === "file")
@@ -98,6 +126,69 @@ export function UserMessage({ message, isNew = true, onEditAndResend, isGenerati
     setEditAttachments((prev) => prev.filter((a) => a.file_id !== fileId));
   }, []);
 
+  // @mention file selection
+  const handleMentionSelect = useCallback(async (result: FileSearchResult) => {
+    const before = editText.slice(0, mentionStartIndex);
+    const after = editText.slice(mentionStartIndex + 1 + mentionQuery.length);
+    const newText = `${before}@${result.name} ${after}`;
+    setEditText(newText);
+    setMentionActive(false);
+
+    try {
+      const attached = await attachByPath([result.absolute_path]);
+      if (attached.length > 0) {
+        setEditAttachments((prev) => {
+          const existingIds = new Set(prev.map((a) => a.file_id));
+          const newFiles = attached.filter((a) => !existingIds.has(a.file_id));
+          return [...prev, ...newFiles];
+        });
+        if (sessionId && directory) {
+          ingestFiles(sessionId, directory, attached.map((a) => a.path));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to attach file:", err);
+    }
+
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+  }, [editText, mentionStartIndex, mentionQuery, sessionId, directory]);
+
+  const handleEditInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart ?? value.length;
+    setEditText(value);
+    e.target.style.height = "auto";
+    e.target.style.height = `${e.target.scrollHeight}px`;
+
+    if (!hasWorkspace) {
+      if (mentionActive) setMentionActive(false);
+      return;
+    }
+    const mention = detectMention(value, cursorPos);
+    if (mention.active) {
+      setMentionActive(true);
+      setMentionQuery(mention.query);
+      setMentionStartIndex(mention.startIndex);
+    } else if (mentionActive) {
+      setMentionActive(false);
+    }
+  }, [hasWorkspace, mentionActive]);
+
+  const handleEditSelect = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    if (!hasWorkspace) return;
+    const cursorPos = e.currentTarget.selectionStart ?? 0;
+    const mention = detectMention(editText, cursorPos);
+    if (mention.active) {
+      setMentionActive(true);
+      setMentionQuery(mention.query);
+      setMentionStartIndex(mention.startIndex);
+    } else if (mentionActive) {
+      setMentionActive(false);
+    }
+  }, [hasWorkspace, editText, mentionActive]);
+
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -128,15 +219,22 @@ export function UserMessage({ message, isNew = true, onEditAndResend, isGenerati
   if (editing) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] sm:max-w-[70%] w-full rounded-2xl bg-[var(--surface-secondary)] border border-[var(--border-heavy)] p-4 shadow-[var(--shadow-sm)]">
+        <div className="max-w-[85%] sm:max-w-[70%] w-full rounded-2xl bg-[var(--surface-secondary)] border border-[var(--border-heavy)] p-4 shadow-[var(--shadow-sm)] relative">
+          {hasWorkspace && (
+            <FileMentionPopup
+              query={mentionQuery}
+              directory={directory!}
+              onSelect={handleMentionSelect}
+              onClose={() => setMentionActive(false)}
+              visible={mentionActive}
+              position="below"
+            />
+          )}
           <textarea
             ref={textareaRef}
             value={editText}
-            onChange={(e) => {
-              setEditText(e.target.value);
-              e.target.style.height = "auto";
-              e.target.style.height = `${e.target.scrollHeight}px`;
-            }}
+            onChange={handleEditInputChange}
+            onSelect={handleEditSelect}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();

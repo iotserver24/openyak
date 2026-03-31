@@ -188,6 +188,8 @@ export function ChatView({ sessionId }: ChatViewProps) {
         streamingText={streamingText}
         streamingReasoning={streamingReasoning}
         onEditAndResend={editAndResend}
+        directory={session?.directory}
+        sessionId={sessionId}
         hasPreviousPage={hasPreviousPage}
         isFetchingPreviousPage={isFetchingPreviousPage}
         fetchPreviousPage={fetchPreviousPage}

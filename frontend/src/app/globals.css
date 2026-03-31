@@ -419,7 +419,7 @@ pre code {
 
 .prose {
   max-width: none;
-  font-family: var(--prose-font, ui-serif, Georgia, Cambria, "Times New Roman", Times, serif);
+  font-family: inherit;
   font-size: 15px;
   line-height: 1.8;
   color: var(--prose-body);

@@ -31,14 +31,24 @@ export function ArtifactPanelContent() {
 
   switch (artifact.type) {
     case "code":
+      if (!artifact.content && artifact.filePath) {
+        return <FilePreviewRenderer filePath={artifact.filePath} content={artifact.content} language={artifact.language} />;
+      }
       return <CodeRenderer content={artifact.content} language={artifact.language} />;
     case "markdown":
+      // If content is empty but filePath exists, load from disk via FilePreviewRenderer
+      if (!artifact.content && artifact.filePath) {
+        return <FilePreviewRenderer filePath={artifact.filePath} content={artifact.content} language={artifact.language} />;
+      }
       return <MarkdownRenderer content={artifact.content} title={artifact.title} />;
     case "svg":
       return <SvgRenderer content={artifact.content} />;
     case "mermaid":
       return <MermaidRenderer content={artifact.content} />;
     case "html":
+      if (!artifact.content && artifact.filePath) {
+        return <FilePreviewRenderer filePath={artifact.filePath} content={artifact.content} language={artifact.language} />;
+      }
       return <HtmlRenderer content={artifact.content} title={artifact.title} />;
     case "react":
       return <ReactRenderer code={artifact.content} title={artifact.title} />;

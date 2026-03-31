@@ -194,10 +194,14 @@ class StreamManager:
         """Remove a completed job."""
         self._jobs.pop(stream_id, None)
 
-    def active_jobs(self) -> list[dict[str, str]]:
+    def active_jobs(self) -> list[dict[str, Any]]:
         """List all active (non-completed) jobs."""
         return [
-            {"stream_id": j.stream_id, "session_id": j.session_id}
+            {
+                "stream_id": j.stream_id,
+                "session_id": j.session_id,
+                "needs_input": bool(j._response_futures),
+            }
             for j in self._jobs.values()
             if not j.completed
         ]
