@@ -1,6 +1,6 @@
 {
   "name": "openyak",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "OpenYak — Your local AI assistant",
   "scripts": {

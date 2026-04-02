@@ -6,6 +6,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), and this project
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-04-02
+
+### Fixed
+
+- **backend:** Use certifi CA bundle for urllib SSL verification — resolves `SSL: CERTIFICATE_VERIFY_FAILED` on macOS
+- **ci:** Fix manifest signatures and download URLs in release workflow
+
+### Added
+
+- **backend:** Prompt caching — split system prompt into cached/dynamic parts for Anthropic prompt caching (reduces cost on repeated turns)
+- **backend:** Zero-LLM-cost context collapse (Layer 3) — drops oldest 1/3 of messages before falling back to full compaction
+- **backend:** Streaming tool concurrency — execute concurrent-safe tools (read, glob, grep, search) in parallel during LLM streaming
+- **backend:** Microcompact context compression — replace old tool outputs with lightweight stubs, enforce 100K token aggregate budget
+- **backend:** Resilient retry with reactive compaction — auto-compact on context overflow, 529 overload handling, exponential backoff with jitter
+- **backend:** Web search guardrails — cap native web searches per step and per-search sources to control token usage
+
+### Changed
+
+- **ci:** Update CI workflow and add ESLint configuration for frontend
+
 ## [1.0.3] - 2026-03-31
 
 ### Fixed
