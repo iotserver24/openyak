@@ -64,7 +64,10 @@ jobs:
           pyinstaller openyak.spec --noconfirm
 
       - name: Download Node.js runtime
-        run: cd backend && python3 scripts/download_node.py
+        run: |
+          cd backend
+          source venv/bin/activate
+          python scripts/download_node.py
 
       - name: Build Tauri
         run: |
