@@ -14,7 +14,7 @@
   <img src="OpenYak-Logo/openyak-demo.gif" width="800" alt="OpenYak Demo" />
 </p>
 
-**OpenYak is an open-source local AI agent that runs entirely on your desktop. It connects to 100+ models from 20+ providers, manages your files, and automates workflows — all without your data ever leaving your machine.**
+**OpenYak is an open-source local AI agent that runs entirely on your desktop. It connects to 100+ models from 20+ providers, manages your files, and automates workflows — all without your data ever leaving your machine. No account required.**
 
 ---
 
@@ -25,6 +25,10 @@
 - **Switch from GPT to Claude in one click.** 100+ cloud models, 20+ API providers, or run fully offline with [Ollama](https://ollama.com). No lock-in.
 
 - **Let AI handle the tedious work.** 20+ built-in tools — read, write, rename files, run commands, parse spreadsheets, draft documents — all locally.
+
+- **Access from your phone — scan a QR code, done.** Enable remote access and scan a QR code with your phone to control your desktop AI from anywhere. Powered by Cloudflare Tunnel with automatic HTTPS — no port forwarding, no setup.
+
+- **No account required.** Just download and start using it. No signup, no login, no email verification. Free models work out of the box.
 
 - **Free to start, no credit card.** 1M tokens per week on free models. Premium models at API prices with zero markup.
 
@@ -55,6 +59,8 @@
 **Data Analysis** — Parse spreadsheets, CSVs, and documents on your machine. Spot trends, flag anomalies, and export reports — your data never leaves your device.
 
 **Research & Synthesis** — Pull information from PDFs, local files, and the web. Summarize across sources, extract key points, and compile structured briefs — ready for review, not raw dumps.
+
+**Remote Access** — Scan a QR code from your desktop and open OpenYak on your phone instantly. Send tasks from your phone, let your desktop execute them, and check results later. Works over Cloudflare Tunnel — no account, no port forwarding, automatic HTTPS. Choose permission modes: auto-approve safe actions, require approval for each tool, or view-only.
 
 Connect to 46+ services — Slack, Notion, GitHub, Figma, and more — through built-in connectors. Or add your own via MCP.
 
@@ -123,6 +129,18 @@ Yes. Install Ollama, download a model, and OpenYak works completely offline. No 
 <summary>What models are supported?</summary>
 
 100+ cloud models via OpenRouter, 20+ BYOK providers with direct API keys, and any model available through Ollama for local inference. New models are available as soon as they launch. See the Supported Providers section above.
+</details>
+
+<details>
+<summary>Do I need to create an account?</summary>
+
+No. OpenYak requires no signup, no login, and no email. Download the app and start using it immediately. Free cloud models work out of the box. For premium models, just add an API key or top up credits — still no account on OpenYak's side.
+</details>
+
+<details>
+<summary>How does remote access work?</summary>
+
+Enable remote access in settings, and OpenYak generates a QR code. Scan it with your phone's camera — it opens a mobile web app connected to your desktop AI over Cloudflare Tunnel with automatic HTTPS. No port forwarding, no Cloudflare account needed. You can send tasks from your phone and your desktop executes them locally. Token-based authentication keeps the connection secure, and you can revoke access or rotate tokens at any time.
 </details>
 
 <details>
