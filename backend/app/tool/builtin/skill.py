@@ -28,35 +28,45 @@ class SkillTool(ToolDefinition):
     def id(self) -> str:
         return "skill"
 
+    # Maximum number of skills to list in the tool description.
+    # Beyond this limit, remaining skills are noted as "(and N more)".
+    _MAX_LISTED_SKILLS = 40
+    # Maximum characters per skill description before truncation.
+    _MAX_DESC_CHARS = 120
+
     @property
     def description(self) -> str:
-        """Dynamically generated — includes list of available skills."""
+        """Dynamically generated — includes budgeted list of available skills."""
         base = (
             "Load a specialised skill that provides domain-specific "
             "instructions and workflows.\n\n"
             "When you recognise that a task matches one of the available "
             "skills listed below, use this tool to load the full skill "
-            "instructions. The skill will inject detailed instructions, "
-            "workflows, and access to bundled resources (scripts, references, "
-            "templates) into the conversation context.\n\n"
-            'Tool output includes a `<skill_content name="...">` block with '
-            "the loaded content and a `<skill_files>` block listing bundled "
-            "resource files that you can read with the `read` tool.\n\n"
-            "Invoke this tool to load a skill when a task matches one of "
-            "the available skills listed below:"
+            "instructions. The skill content and bundled resource file "
+            "paths will be returned.\n\n"
+            "IMPORTANT: Do NOT load a skill just to read a file. The `read` "
+            "tool already handles ALL file types natively (PDF, DOCX, XLSX, "
+            "PPTX, images, etc.). Simply call `read` directly — no skill "
+            "needed.\n\n"
+            "Available skills:"
         )
 
         active = self._skill_registry.active_skills() if self._skill_registry else []
         if not active:
             return base + "\n\nNo skills are currently available."
 
-        lines = [base, "", "<available_skills>"]
-        for skill in active:
-            lines.append("  <skill>")
-            lines.append(f"    <name>{skill.name}</name>")
-            lines.append(f"    <description>{skill.description}</description>")
-            lines.append("  </skill>")
-        lines.append("</available_skills>")
+        shown = active[: self._MAX_LISTED_SKILLS]
+        remaining = len(active) - len(shown)
+
+        lines = [base, ""]
+        for skill in shown:
+            desc = skill.description or ""
+            if len(desc) > self._MAX_DESC_CHARS:
+                desc = desc[: self._MAX_DESC_CHARS - 3] + "..."
+            lines.append(f"- {skill.name}: {desc}")
+
+        if remaining > 0:
+            lines.append(f"  (and {remaining} more — invoke by name to check availability)")
         return "\n".join(lines)
 
     def parameters_schema(self) -> dict[str, Any]:

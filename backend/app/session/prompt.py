@@ -95,7 +95,6 @@ class SessionPrompt:
         self.model_info: Any | None = None
         self.directory: str | None = None
         self.workspace: str | None = None
-        self.skill_names: list[str] = []
         self.fts_status: dict[str, Any] | None = None
         self.workspace_memory_section: str | None = None
         self.system_prompt_parts: SystemPromptParts | None = None
@@ -116,6 +115,9 @@ class SessionPrompt:
         self.middleware_chain = build_middleware_chain(
             get_todos_fn=lambda: self.current_todos,
         )
+
+        # Deferred tools: MCP tool IDs discovered via tool_search this generation
+        self.discovered_tools: set[str] = set()
 
         # Cross-step loop state
         self.step: int = 0
@@ -281,12 +283,6 @@ class SessionPrompt:
                 if session:
                     self.directory = session.directory
 
-        skill_tool = self.tool_registry.get("skill")
-        if skill_tool is not None and hasattr(skill_tool, "_skill_registry"):
-            sr = skill_tool._skill_registry
-            if sr is not None:
-                self.skill_names = sr.active_skill_names()
-
         self.workspace = (
             self.directory if self.directory and self.directory != "." else self.request.workspace
         )
@@ -331,7 +327,6 @@ class SessionPrompt:
         self.system_prompt_parts = build_system_prompt(
             self.agent,
             directory=self.directory,
-            skill_names=self.skill_names if self.skill_names else None,
             workspace=self.workspace,
             fts_status=self.fts_status,
             workspace_memory_section=self.workspace_memory_section,
@@ -388,6 +383,8 @@ class SessionPrompt:
         _hard_cap_final_done = False
         _consecutive_compact_failures = 0
         _MAX_CONSECUTIVE_COMPACT_FAILURES = 3
+        _has_any_text = False  # Track if any step produced visible text
+        _empty_response_nudged = False  # Prevent infinite nudge loop
 
         while True:
             if self.job.abort_event.is_set():
@@ -506,6 +503,8 @@ class SessionPrompt:
             result = await processor.process()
 
             # Accumulate cost and tokens from this step
+            if processor.has_text:
+                _has_any_text = True
             self.total_cost += processor.step_cost
             self.finish_reason = processor.finish_reason
             # Reset length continuation counter when model finishes normally
@@ -743,6 +742,46 @@ class SessionPrompt:
                                         f"{incomplete_names}. "
                                         f"Continue working on them. Call the todo tool to update "
                                         f"status, then use tools to complete each task.]"
+                                    ),
+                                },
+                            )
+                    continue
+
+                # Empty response guard: if the entire generation produced no
+                # visible text, nudge the model once to provide a final summary.
+                # Without this, the user sees a blank response (all output was
+                # reasoning + tool calls hidden in the activity panel).
+                if (
+                    not _has_any_text
+                    and not _empty_response_nudged
+                    and not self.job.abort_event.is_set()
+                ):
+                    _empty_response_nudged = True
+                    logger.warning(
+                        "Agent produced no text output across %d step(s) for "
+                        "session %s, nudging for final summary",
+                        self.step,
+                        self.job.session_id,
+                    )
+                    async with self.session_factory() as db:
+                        async with db.begin():
+                            nudge_msg = await _create_message(
+                                db,
+                                session_id=self.job.session_id,
+                                data={"role": "user", "agent": self.agent.name, "system": True},
+                            )
+                            await create_part(
+                                db,
+                                message_id=nudge_msg.id,
+                                session_id=self.job.session_id,
+                                data={
+                                    "type": "text",
+                                    "text": (
+                                        "[System: You completed your work but produced no visible "
+                                        "response text. The user cannot see your reasoning or tool "
+                                        "activity. Please provide a clear, helpful summary of what "
+                                        "you found and accomplished. Do NOT use any tools — just "
+                                        "respond with text.]"
                                     ),
                                 },
                             )

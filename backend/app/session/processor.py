@@ -333,6 +333,7 @@ class SessionProcessor:
         self.usage_data: dict[str, Any] = {}
         self.finish_reason: str = "stop"
         self.step_cost: float = 0.0
+        self.has_text: bool = False  # True if this step produced non-empty text
 
     async def process(self) -> Literal["continue", "stop", "compact"]:
         """Execute one LLM step and return the loop continuation signal.
@@ -430,6 +431,7 @@ class SessionProcessor:
                     extra_body=reasoning_extra,
                     max_tokens=safe_max_tokens,
                     exclude_tools=_exclude_tools,
+                    discovered_tools=sp.discovered_tools,
                     response_format=sp.request.format,
                 ):
                     if job.abort_event.is_set():
@@ -549,6 +551,7 @@ class SessionProcessor:
                                     workspace=sp.workspace,
                                     index_manager=getattr(sp, "index_manager", None),
                                     messages=self._llm_messages,
+                                    discovered_tools=sp.discovered_tools,
                                     _publish_fn=lambda et, d: job.publish(SSEEvent(et, d)),
                                 )
                                 _ctx._app_state = {  # type: ignore[attr-defined]
@@ -844,6 +847,7 @@ class SessionProcessor:
             return "continue"
 
         # --- Persist text and reasoning parts ---
+        self.has_text = bool(accumulated_text.strip())
         async with session_factory() as db:
             async with db.begin():
                 if accumulated_text.strip():

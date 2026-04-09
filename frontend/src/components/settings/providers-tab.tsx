@@ -16,6 +16,17 @@ import { desktopAPI } from "@/lib/tauri-api";
 import type { ApiKeyStatus, ProviderInfo, LocalProviderStatus } from "@/types/usage";
 import { OllamaPanel } from "@/components/settings/ollama-panel";
 
+/** Extract a displayable error message from FastAPI error responses.
+ *  Handles both string `detail` (HTTP 400) and array `detail` (HTTP 422). */
+function extractApiDetail(err: unknown, fallback: string): string {
+  if (!(err instanceof ApiError)) return fallback;
+  const raw = (err.body as Record<string, unknown> | undefined)?.detail;
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw))
+    return raw.map((e: Record<string, unknown>) => e?.msg ?? String(e)).join("; ");
+  return fallback;
+}
+
 interface OpenAISubscriptionStatus {
   is_connected: boolean;
   email: string;
@@ -250,8 +261,7 @@ export function ProvidersTab({ onNavigateTab }: ProvidersTabProps) {
     },
     onError: (err) => {
       setProviderMutatingId(null);
-      const detail = err instanceof ApiError ? ((err.body as Record<string, string> | undefined)?.detail ?? "Failed to save endpoint") : "Failed to save endpoint";
-      setProviderError((prev) => ({ ...prev, ["custom_new"]: detail }));
+      setProviderError((prev) => ({ ...prev, ["custom_new"]: extractApiDetail(err, "Failed to save endpoint") }));
     },
   });
 
@@ -285,8 +295,7 @@ export function ProvidersTab({ onNavigateTab }: ProvidersTabProps) {
     },
     onError: (err, { id }) => {
       setProviderMutatingId(null);
-      const detail = err instanceof ApiError ? ((err.body as Record<string, string> | undefined)?.detail ?? "Failed to update endpoint") : "Failed to update endpoint";
-      setProviderError((prev) => ({ ...prev, [id]: detail }));
+      setProviderError((prev) => ({ ...prev, [id]: extractApiDetail(err, "Failed to update endpoint") }));
     },
   });
 

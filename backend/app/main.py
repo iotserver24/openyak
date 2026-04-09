@@ -340,7 +340,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     for mcp_tool in connector_registry.tools():
         tool_registry.register(mcp_tool)
     if connector_registry.tools():
-        logger.info("MCP integration enabled (%d tools)", len(connector_registry.tools()))
+        # Register ToolSearch so LLM can discover deferred MCP tool schemas on demand
+        from app.tool.builtin.tool_search import ToolSearchTool
+        tool_registry.register(ToolSearchTool(tool_registry))
+        logger.info("MCP integration enabled (%d tools, ToolSearch active)", len(connector_registry.tools()))
 
     app.state.tool_registry = tool_registry
     set_tool_registry(tool_registry)

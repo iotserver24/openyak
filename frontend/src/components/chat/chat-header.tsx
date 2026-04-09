@@ -114,7 +114,7 @@ export function ChatHeader({ sessionId }: ChatHeaderProps) {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <header className="flex h-13 items-center gap-1 px-3 bg-[var(--surface-primary)]/80 backdrop-blur-sm">
+      <header className="relative z-10 flex h-13 items-center gap-1 px-3 bg-[var(--surface-primary)]/80 backdrop-blur-sm">
         {/* Remote mode: task list button */}
         {remote && (
           <Button

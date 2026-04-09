@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { useTranslation } from 'react-i18next';
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Trash2, Pencil, FileDown, FileText, FolderOpen, Pin, PinOff, MessageCircle } from "lucide-react";
+import { Trash2, Pencil, FileDown, FileText, FolderOpen, Pin, PinOff, MessageCircle, EllipsisVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { API, queryKeys } from "@/lib/constants";
@@ -18,6 +18,13 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import type { SessionResponse } from "@/types/session";
 
 interface SessionItemProps {
@@ -203,6 +210,49 @@ export const SessionItem = memo(function SessionItem({
               </>
             )}
           </div>
+
+          {/* Three-dot menu button — visible on hover or when active */}
+          {!isEditing && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 h-6 w-6 flex items-center justify-center rounded-md hover:bg-[var(--surface-tertiary)] transition-opacity text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                >
+                  <EllipsisVertical className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-44" align="start" side="right">
+                <DropdownMenuItem onSelect={() => onTogglePin?.(session.id, !session.is_pinned)}>
+                  {session.is_pinned ? (
+                    <><PinOff className="h-3.5 w-3.5" />{t('unpin', { defaultValue: 'Unpin' })}</>
+                  ) : (
+                    <><Pin className="h-3.5 w-3.5" />{t('pin', { defaultValue: 'Pin' })}</>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onEditStart?.(session.id)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                  {t('rename')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onExportPdf?.(session.id, title)}>
+                  <FileDown className="h-3.5 w-3.5" />
+                  {t('exportPdf')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onExportMarkdown?.(session.id, title)}>
+                  <FileText className="h-3.5 w-3.5" />
+                  {t('exportMarkdown', { defaultValue: 'Export Markdown' })}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => onDelete(session.id, title)}
+                  className="text-[var(--color-destructive)] focus:text-[var(--color-destructive)]"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {t('delete')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-44">

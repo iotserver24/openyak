@@ -27,24 +27,41 @@ class TestUpdateEnvFile:
         env = tmp_path / ".env"
         with patch("app.api.config._ENV_PATH", env):
             _update_env_file("NEW_KEY", "new_value")
-        assert "NEW_KEY=new_value" in env.read_text()
+        assert "NEW_KEY='new_value'" in env.read_text()
 
     def test_updates_existing_key(self, tmp_path: Path):
         env = tmp_path / ".env"
-        env.write_text("MY_KEY=old\nOTHER=keep\n")
+        env.write_text("MY_KEY='old'\nOTHER='keep'\n")
         with patch("app.api.config._ENV_PATH", env):
             _update_env_file("MY_KEY", "new")
         text = env.read_text()
-        assert "MY_KEY=new" in text
-        assert "OTHER=keep" in text
-        assert "old" not in text
+        assert "MY_KEY='new'" in text
+        assert "OTHER='keep'" in text
+        assert "'old'" not in text
 
     def test_handles_spaces(self, tmp_path: Path):
         env = tmp_path / ".env"
         env.write_text("MY_KEY = old_val\n")
         with patch("app.api.config._ENV_PATH", env):
             _update_env_file("MY_KEY", "new_val")
-        assert "MY_KEY=new_val" in env.read_text()
+        assert "MY_KEY='new_val'" in env.read_text()
+
+    def test_quotes_json_with_hash(self, tmp_path: Path):
+        """Values containing # must be quoted to prevent dotenv comment truncation."""
+        env = tmp_path / ".env"
+        json_val = '[{"url":"https://example.com/#/v1"}]'
+        with patch("app.api.config._ENV_PATH", env):
+            _update_env_file("ENDPOINTS", json_val)
+        text = env.read_text()
+        assert json_val in text  # full value preserved, not truncated at #
+
+    def test_escapes_single_quotes(self, tmp_path: Path):
+        env = tmp_path / ".env"
+        with patch("app.api.config._ENV_PATH", env):
+            _update_env_file("KEY", "it's a value")
+        text = env.read_text()
+        assert "KEY=" in text
+        assert "it" in text  # value is present (escaped)
 
 
 class TestRemoveEnvKey:

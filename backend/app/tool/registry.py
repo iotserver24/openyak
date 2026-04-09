@@ -79,7 +79,21 @@ class ToolRegistry:
         *,
         extra_ruleset: Ruleset | None = None,
         exclude: set[str] | None = None,
+        discovered: set[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """Get OpenAI function specs for tools available to an agent."""
+        """Get OpenAI function specs for tools available to an agent.
+
+        When *discovered* is provided (not None), MCP tools are deferred:
+        only those whose id is in *discovered* are included.  Non-MCP tools
+        (builtins, skill, tool_search) are always included.  When *discovered*
+        is None the behaviour is unchanged — all tools are included.
+        """
         tools = self.resolve_for_agent(agent, extra_ruleset=extra_ruleset, exclude=exclude)
+        if discovered is not None:
+            from app.mcp.tool_wrapper import McpToolWrapper
+
+            tools = [
+                t for t in tools
+                if not isinstance(t, McpToolWrapper) or t.id in discovered
+            ]
         return [tool.to_openai_spec() for tool in tools]

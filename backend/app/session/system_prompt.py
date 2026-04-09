@@ -67,7 +67,6 @@ def build_system_prompt(
     agent: AgentInfo,
     *,
     directory: str | None = None,
-    skill_names: list[str] | None = None,
     workspace: str | None = None,
     fts_status: dict | None = None,
     workspace_memory_section: str | None = None,
@@ -99,11 +98,6 @@ def build_system_prompt(
     # Environment info (timestamp changes every minute)
     env_info = _environment_section(directory, workspace=workspace, fts_status=fts_status)
     dynamic_parts.append(env_info)
-
-    # Available skills hint
-    skills_section = _skills_section(skill_names)
-    if skills_section:
-        dynamic_parts.append(skills_section)
 
     return SystemPromptParts(
         cached="\n\n".join(cached_parts),
@@ -188,19 +182,6 @@ def _load_project_instructions(directory: str | None) -> str | None:
     return None
 
 
-def _skills_section(skill_names: list[str] | None) -> str | None:
-    """Generate a hint about available skills for the system prompt."""
-    if not skill_names:
-        return None
 
-    names = ", ".join(skill_names)
-    return (
-        "# Available Skills\n"
-        f"The following skills are available via the `skill` tool: {names}\n\n"
-        "Before starting a task, check if a relevant skill exists. "
-        "If one looks related, load it first — it may contain useful "
-        "workflows, best practices, or instructions that improve your output.\n\n"
-        "IMPORTANT: Do NOT load a skill just to read a file. The `read` tool "
-        "already handles ALL file types natively (PDF, DOCX, XLSX, PPTX, images, etc.). "
-        "Simply call `read` directly — no skill needed."
-    )
+# _skills_section removed — skill listing now lives only in SkillTool.description
+# to avoid token duplication. See app/tool/builtin/skill.py.

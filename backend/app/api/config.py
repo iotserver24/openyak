@@ -77,20 +77,27 @@ def _build_custom_endpoint_info(
 
 
 def _update_env_file(key: str, value: str) -> None:
-    """Update or add a key=value pair in the backend .env file."""
+    """Update or add a key=value pair in the backend .env file.
+
+    Values are single-quoted to prevent python-dotenv from interpreting
+    special characters (``#`` as inline comments, whitespace stripping, etc.).
+    """
     lines: list[str] = []
     found = False
+    # Single-quote the value; escape any embedded single quotes.
+    escaped = value.replace("'", "'\\''")
+    entry = f"{key}='{escaped}'"
 
     if _ENV_PATH.exists():
         lines = _ENV_PATH.read_text(encoding="utf-8").splitlines()
         for i, line in enumerate(lines):
             if line.startswith(f"{key}=") or line.startswith(f"{key} ="):
-                lines[i] = f"{key}={value}"
+                lines[i] = entry
                 found = True
                 break
 
     if not found:
-        lines.append(f"{key}={value}")
+        lines.append(entry)
 
     _ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -713,10 +720,11 @@ async def update_custom_endpoint(
     registry: ProviderRegistryDep,
 ) -> ProviderInfo:
     """Update a custom endpoint (partial update)."""
-    models = []
+    models: list = []
     test_provider = None
     needs_rebuild = body.base_url is not None or body.api_key is not None
 
+    # --- Phase 1: read current config (under lock) ---
     async with _custom_endpoints_lock:
         endpoints = get_custom_endpoints(settings)
 
@@ -731,21 +739,30 @@ async def update_custom_endpoint(
         if not found:
             raise HTTPException(404, "Custom endpoint not found")
 
-        name = body.name.strip() if body.name is not None else found.get("name", "Custom Endpoint")
-        base_url = body.base_url if body.base_url is not None else found.get("base_url", "")
-        api_key = body.api_key.strip() if body.api_key is not None else found.get("api_key", "")
-        enabled = body.enabled if body.enabled is not None else found.get("enabled", True)
+    name = body.name.strip() if body.name is not None else found.get("name", "Custom Endpoint")
+    base_url = body.base_url if body.base_url is not None else found.get("base_url", "")
+    api_key = body.api_key.strip() if body.api_key is not None else found.get("api_key", "")
+    enabled = body.enabled if body.enabled is not None else found.get("enabled", True)
 
-        if needs_rebuild:
-            try:
-                test_provider = create_desktop_provider(endpoint_id, api_key, base_url=base_url)
-                models = await test_provider.list_models()
-            except Exception as e:
-                logger.warning("Failed validation for custom endpoint %s: %s", name, e)
-                raise HTTPException(400, f"Validation failed: {e}")
-        else:
-            provider = registry.get_provider(endpoint_id)
-            models = [m for p, m in registry._full_models if m.provider_id == endpoint_id] if provider else []
+    # --- Phase 2: validate (outside lock — network I/O) ---
+    if needs_rebuild:
+        try:
+            test_provider = create_desktop_provider(endpoint_id, api_key, base_url=base_url)
+            models = await test_provider.list_models()
+        except Exception as e:
+            logger.warning("Failed validation for custom endpoint %s: %s", name, e)
+            raise HTTPException(400, f"Validation failed: {e}")
+    else:
+        provider = registry.get_provider(endpoint_id)
+        models = [m for p, m in registry._full_models if m.provider_id == endpoint_id] if provider else []
+
+    # --- Phase 3: persist (under lock) ---
+    async with _custom_endpoints_lock:
+        # Re-read in case another request mutated while we validated.
+        endpoints = get_custom_endpoints(settings)
+        found_idx = next((i for i, e in enumerate(endpoints) if e.get("id") == endpoint_id), -1)
+        if found_idx == -1:
+            raise HTTPException(404, "Custom endpoint was deleted during update")
 
         updated_config = {
             "id": endpoint_id,

@@ -36,6 +36,9 @@ class ToolContext:
     tool summarising prior work for a subagent) can read this field.
     """
 
+    # Deferred-tools discovery state (shared reference with SessionPrompt)
+    discovered_tools: set[str] | None = None
+
     # Callbacks set by the session processor
     _publish_fn: Callable[[str, dict[str, Any]], None] | None = None
     _ask_fn: Callable[[str, list[str]], Awaitable[bool]] | None = None

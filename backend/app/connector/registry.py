@@ -346,12 +346,22 @@ class ConnectorRegistry:
             self._tool_registry.unregister(tid)
 
         # Re-add tools from currently connected servers
-        for tool in self.tools():
+        mcp_tools = self.tools()
+        for tool in mcp_tools:
             self._tool_registry.register(tool)
+
+        # Register/unregister ToolSearchTool based on MCP tool availability
+        from app.tool.builtin.tool_search import ToolSearchTool
+
+        has_search = self._tool_registry.get("tool_search") is not None
+        if mcp_tools and not has_search:
+            self._tool_registry.register(ToolSearchTool(self._tool_registry))
+        elif not mcp_tools and has_search:
+            self._tool_registry.unregister("tool_search")
 
         logger.info(
             "MCP tools synced: %d tools from connected servers",
-            len(self.tools()),
+            len(mcp_tools),
         )
 
     # ------------------------------------------------------------------

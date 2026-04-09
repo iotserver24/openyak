@@ -28,6 +28,7 @@ async def stream_llm(
     extra_body: dict[str, Any] | None = None,
     max_tokens: int | None = None,
     exclude_tools: set[str] | None = None,
+    discovered_tools: set[str] | None = None,
     response_format: dict[str, Any] | None = None,
 ) -> AsyncIterator[StreamChunk]:
     """Unified LLM streaming call.
@@ -37,7 +38,9 @@ async def stream_llm(
     most providers do not support both simultaneously.
     """
     # Resolve tool specs for this agent; disable when structured output is requested
-    tool_specs = None if response_format else tool_registry.to_openai_specs(agent, exclude=exclude_tools)
+    tool_specs = None if response_format else tool_registry.to_openai_specs(
+        agent, exclude=exclude_tools, discovered=discovered_tools,
+    )
 
     async for chunk in provider.stream_chat(
         model_id,

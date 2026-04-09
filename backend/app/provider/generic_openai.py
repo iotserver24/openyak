@@ -148,7 +148,12 @@ class GenericOpenAIProvider(OpenAICompatProvider):
             return []
 
     async def _fetch_api_models(self) -> list[ModelInfo]:
-        """Last resort: fetch models from the provider's /v1/models endpoint."""
+        """Last resort: fetch models from the provider's /v1/models endpoint.
+
+        For custom endpoints (``openai_compat_custom``), connection and auth
+        errors are propagated so the caller can surface them to the user.
+        Built-in providers silently return ``[]`` to allow fallback behaviour.
+        """
         try:
             response = await self._client.models.list()
             models = []
@@ -166,6 +171,8 @@ class GenericOpenAIProvider(OpenAICompatProvider):
             return models
         except Exception as e:
             logger.warning("Failed to fetch models from %s API: %s", self._provider_id, e)
+            if self._kind == "openai_compat_custom":
+                raise
             return []
 
 
